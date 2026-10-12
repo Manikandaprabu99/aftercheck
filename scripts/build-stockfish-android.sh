@@ -17,8 +17,8 @@ fi
 
 git clone --depth 1 --branch "$STOCKFISH_TAG" https://github.com/official-stockfish/Stockfish.git "$TEMP_ROOT/Stockfish"
 NATIVE_SOURCE="$ROOT/android/app/src/main/cpp/stockfish"
+rm -rf "$NATIVE_SOURCE"
 mkdir -p "$NATIVE_SOURCE"
-rm -rf "$NATIVE_SOURCE"/*
 cp -a "$TEMP_ROOT/Stockfish/src/." "$NATIVE_SOURCE/"
 
 cd "$ROOT/android"
