@@ -96,13 +96,15 @@ fun GameReviewScreen(
                     Text("${displayedGame.white}  vs  ${displayedGame.black}", color = ReviewPaper, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text("Result ${displayedGame.result}  ·  ${displayedGame.timeControl}", color = ReviewMuted, fontSize = 12.sp)
                     Text(if (displayedGame.reviewStatus == "READY") "Local Stockfish analysis complete" else "Review status: ${displayedGame.reviewStatus.lowercase().replace('_', ' ')}", color = if (displayedGame.reviewStatus == "READY") ReviewGreen else ReviewMuted, fontSize = 12.sp)
-                    if (displayedGame.reviewStatus == "FAILED") {
+                    if (displayedGame.reviewStatus == "FAILED" || displayedGame.reviewStatus == "WAITING") {
                         androidx.compose.material3.Button(onClick = {
                             scope.launch {
                                 dao.setReviewStatus(displayedGame.url, "WAITING")
                                 AnalysisScheduler.enqueue(context)
                             }
-                        }) { Text("Retry analysis") }
+                        }) {
+                            Text(if (displayedGame.reviewStatus == "FAILED") "Retry analysis" else "Analyze now")
+                        }
                     }
                 }
             }
