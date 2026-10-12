@@ -60,7 +60,6 @@ import androidx.compose.ui.platform.LocalContext
 import app.aftercheck.data.AfterCheckDatabase
 import app.aftercheck.data.ChessComSyncService
 import app.aftercheck.data.ChessGameEntity
-import app.aftercheck.ui.GameReviewScreen
 import app.aftercheck.worker.SyncScheduler
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -388,8 +387,8 @@ private fun EmptyCard(title: String, detail: String) {
 }
 
 @Composable
-private fun GameCard(game: ChessGameEntity) {
-    Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+private fun GameCard(game: ChessGameEntity, onClick: () -> Unit) {
+    Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(Modifier.padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(PanelRaised), contentAlignment = Alignment.Center) {
                 Text(resultGlyph(game.result), color = if (game.result == "1-0") Lime else Paper, fontSize = 17.sp, fontWeight = FontWeight.Bold)
