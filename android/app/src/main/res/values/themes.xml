@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="aftercheck_background">#101512</color>
+    <color name="aftercheck_green">#9BE36D</color>
+    <color name="aftercheck_surface">#1A211C</color>
+    <style name="Theme.AfterCheck" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@color/aftercheck_background</item>
+        <item name="android:windowBackground">@color/aftercheck_background</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>
