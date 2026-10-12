@@ -12,7 +12,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: aftercheck-android-${{ github.ref }}
+  group: aftercheck-build-v2-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
