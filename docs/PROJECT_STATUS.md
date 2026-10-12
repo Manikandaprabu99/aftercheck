@@ -6,7 +6,7 @@
 - Dark green-accented Home, Games, Insights, Practice and Settings shell; game rows open a move-by-move review screen with a rendered board and selectable plies.
 - Room game library, review summary table and per-move analysis table.
 - Chess.com documented public archive-index and monthly PGN retrieval. Username-only setup; no password, cookie, or private endpoint access.
-- Batched historical archive processing, per-username archive cursor, duplicate checks, explicit sync status and WorkManager continuation.
+- Batched historical archive processing, per-username archive cursor, duplicate checks, explicit sync status, retry-vs-permanent-error handling and WorkManager continuation.
 - PGN header extraction and SAN replay timeline with FEN before/after every ply.
 - Stockfish UCI process adapter and local review pipeline source: per-position evaluation, best move, principal variation, app-defined CP-loss classification and estimated side accuracy.
 - Practice questions are generated from analyzed inaccuracies, mistakes and blunders. Choices use legal moves from the recorded position and reveal the recorded engine recommendation after the user answers.
