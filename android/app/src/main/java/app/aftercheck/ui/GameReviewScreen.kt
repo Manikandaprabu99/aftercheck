@@ -134,6 +134,7 @@ fun GameReviewScreen(
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text("Estimated performance", color = ReviewPaper, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
                         Text("App estimate · engine depth ${summary!!.engineDepth}", color = ReviewMuted, fontSize = 11.sp)
+                        Text("Final evaluation (White POV): ${formatCp(summary!!.finalEvaluationWhiteCp)}", color = ReviewMuted, fontSize = 12.sp)
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             SummaryMetric("White", "${summary!!.accuracyWhite.formatOneDecimal()}%", Modifier.weight(1f))
                             SummaryMetric("Black", "${summary!!.accuracyBlack.formatOneDecimal()}%", Modifier.weight(1f))
