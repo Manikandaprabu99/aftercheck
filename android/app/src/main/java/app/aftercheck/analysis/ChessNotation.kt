@@ -20,14 +20,12 @@ object ChessNotation {
     fun uciVariationToSan(fen: String, variation: String, maxMoves: Int = 12): String {
         val board = runCatching { Board().apply { loadFromFen(fen) } }.getOrNull() ?: return ""
         val moveList = MoveList(fen)
-        variation.trim().split(Regex("\\s+"))
-            .filter { it.isNotBlank() }
-            .take(maxMoves.coerceIn(1, 30))
-            .forEach { uci ->
-                val move = runCatching { Move(uci, board.sideToMove) }.getOrNull() ?: return@forEach
-                val applied = runCatching { board.doMove(move, true) }.getOrDefault(false)
-                if (applied) moveList.add(move) else return@forEach
-            }
+        for (uci in variation.trim().split(Regex("\\s+")).filter { it.isNotBlank() }.take(maxMoves.coerceIn(1, 30))) {
+            val move = runCatching { Move(uci, board.sideToMove) }.getOrNull() ?: break
+            val applied = runCatching { board.doMove(move, true) }.getOrDefault(false)
+            if (!applied) break
+            moveList.add(move)
+        }
         return runCatching { moveList.toSanWithMoveNumbers() }.getOrDefault("")
     }
 }
