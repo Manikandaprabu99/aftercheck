@@ -55,7 +55,7 @@ object GameReviewProcessor {
         val summary = GameReviewEntity(
             gameUrl = game.url,
             evaluatedPlies = moveRows.size,
-            accuracyWhite = estimateAccuracyForTest(whiteLosses),
+            accuracyWhite = estimateAccuracy(whiteLosses),
             accuracyBlack = estimateAccuracyForTest(blackLosses),
             bestMoves = moveRows.count { it.classification == "BEST" },
             excellentMoves = moveRows.count { it.classification == "EXCELLENT" },
