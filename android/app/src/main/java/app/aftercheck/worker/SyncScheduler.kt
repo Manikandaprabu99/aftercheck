@@ -48,7 +48,7 @@ object SyncScheduler {
             .setInitialDelay(30, TimeUnit.SECONDS)
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork(
-            "aftercheck-history-continuation", ExistingWorkPolicy.KEEP, work
+            "aftercheck-history-continuation", ExistingWorkPolicy.APPEND_OR_REPLACE, work
         )
     }
 }
