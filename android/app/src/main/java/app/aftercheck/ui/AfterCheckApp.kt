@@ -2,6 +2,7 @@ package app.aftercheck.ui
 
 import android.content.Context
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -59,6 +60,7 @@ import androidx.compose.ui.platform.LocalContext
 import app.aftercheck.data.AfterCheckDatabase
 import app.aftercheck.data.ChessComSyncService
 import app.aftercheck.data.ChessGameEntity
+import app.aftercheck.ui.GameReviewScreen
 import app.aftercheck.worker.SyncScheduler
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -79,11 +81,12 @@ fun AfterCheckApp(database: AfterCheckDatabase) {
     val gameCount by dao.observeCount().collectAsState(initial = 0)
     val reviewedCount by dao.observeReviewedCount().collectAsState(initial = 0)
     var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedGame by remember { mutableStateOf<ChessGameEntity?>(null) }
 
     Scaffold(
         containerColor = Night,
         bottomBar = {
-            NavigationBar(containerColor = Panel, contentColor = Paper) {
+            if (selectedGame == null) NavigationBar(containerColor = Panel, contentColor = Paper) {
                 val labels = listOf("Home", "Games", "Insights", "Practice", "Settings")
                 val icons = listOf(
                     Icons.Rounded.Home,
@@ -103,16 +106,25 @@ fun AfterCheckApp(database: AfterCheckDatabase) {
             }
         }
     ) { padding ->
-        when (selectedTab) {
+        val openGame: (ChessGameEntity) -> Unit = { selectedGame = it }
+        if (selectedGame != null) {
+            GameReviewScreen(
+                database = database,
+                game = selectedGame!!,
+                onBack = { selectedGame = null },
+                modifier = Modifier.padding(padding)
+            )
+        } else when (selectedTab) {
             0 -> HomeScreen(
                 context = context,
                 games = games,
                 gameCount = gameCount,
                 reviewedCount = reviewedCount,
                 onOpenSettings = { selectedTab = 4 },
+                onGameClick = openGame,
                 modifier = Modifier.padding(padding)
             )
-            1 -> GamesScreen(games = games, modifier = Modifier.padding(padding))
+            1 -> GamesScreen(games = games, onGameClick = openGame, modifier = Modifier.padding(padding))
             2 -> InsightsScreen(games = games, modifier = Modifier.padding(padding))
             3 -> PracticeScreen(modifier = Modifier.padding(padding))
             else -> SettingsScreen(context = context, modifier = Modifier.padding(padding))
@@ -127,6 +139,7 @@ private fun HomeScreen(
     gameCount: Int,
     reviewedCount: Int,
     onOpenSettings: () -> Unit,
+    onGameClick: (ChessGameEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val prefs = remember { context.getSharedPreferences(ChessComSyncService.PREFS, Context.MODE_PRIVATE) }
@@ -223,13 +236,13 @@ private fun HomeScreen(
         if (games.isEmpty()) {
             item { EmptyCard("Your next review starts here", "Add your Chess.com username in Settings. Publicly available completed games can then sync automatically.") }
         } else {
-            items(games.take(4), key = { it.url }) { game -> GameCard(game) }
+            items(games.take(4), key = { it.url }) { game -> GameCard(game) { onGameClick(game) } }
         }
     }
 }
 
 @Composable
-private fun GamesScreen(games: List<ChessGameEntity>, modifier: Modifier = Modifier) {
+private fun GamesScreen(games: List<ChessGameEntity>, onGameClick: (ChessGameEntity) -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxSize().background(Night).padding(horizontal = 20.dp, vertical = 24.dp)) {
         Text("Games", color = Paper, fontSize = 29.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(5.dp))
@@ -238,8 +251,8 @@ private fun GamesScreen(games: List<ChessGameEntity>, modifier: Modifier = Modif
         if (games.isEmpty()) {
             EmptyCard("No games yet", "Connect a Chess.com username in Settings. Only games available from supported public archives can be imported.")
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(games, key = { it.url }) { GameCard(it) }
+            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(games, key = { it.url }) { game -> GameCard(game) { onGameClick(game) } }
             }
         }
     }
