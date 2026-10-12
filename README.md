@@ -2,26 +2,32 @@
 
 **Free, local-first chess game review for Android.**
 
-AfterCheck aims to review completed chess games using Stockfish on your Android device, explain moves with engine-backed evidence, and turn recurring mistakes into practice—without a mandatory paid analysis API or app account.
+AfterCheck reviews completed chess games on-device with Stockfish, explains moves with engine-backed evidence, and turns recurring mistakes into practice—without a paid analysis API or an AfterCheck account.
 
-> Independent community project; not affiliated with Chess.com. Chess.com and Stockfish are respective third-party projects and trademarks.
+> Independent community project; not affiliated with Chess.com or the Stockfish project.
 
-## Planned stack
-- Kotlin + Jetpack Compose + Material 3
-- Room for local game/review storage
-- WorkManager for OS-scheduled incremental synchronization
-- Local Stockfish analysis
-- GitHub Actions builds and GitHub Releases for APK distribution
+## Features in source
+
+- Native Kotlin + Jetpack Compose + Material 3
+- Local Room database for games and reviews
+- Sync of games exposed by Chess.com's documented public archive API
+- Stockfish analysis through an in-process JNI library
+- Move-by-move evaluations, best-move suggestions and principal variations
+- Practice questions generated from analyzed mistakes
+- WorkManager sync/review queue and GitHub Actions APK builds
 
 ## Status
 
-See [Project status](docs/PROJECT_STATUS.md) for implementation and verification details. The first review pipeline and local Stockfish build integration are present in source, but the app is not considered complete and no APK is described as tested until the current GitHub Actions build succeeds.
+See [Project status](docs/PROJECT_STATUS.md). The JNI migration is undergoing a fresh CI build and has not yet been validated on a physical device. Follow the Actions results before treating the latest APK as verified.
 
 ## Build
-Open the `android/` directory in Android Studio with JDK 17 and Android SDK 35 installed. GitHub Actions is configured to build a debug APK and upload it as a workflow artifact. See [Build guide](docs/BUILD.md).
+
+See [Build guide](docs/BUILD.md). Local builds first fetch the pinned Stockfish `sf_19` source using `scripts/build-stockfish-android.sh`. The first review downloads the official evaluation network once and stores it locally; later analysis can work offline.
 
 ## Privacy
-Game history and reviews are intended to stay on device by default. No Chess.com password, session cookie, private token, or secret API key should be collected or committed.
+
+Game history and reviews are intended to remain on-device by default. The app asks only for a Chess.com username and imports games available through the documented public archive API. It does not request Chess.com passwords, session cookies, private tokens or undocumented endpoint access.
 
 ## License
-Application code is intended to use MIT unless a specific file says otherwise. Third-party components retain their own licenses. Stockfish integration must include all notices and license obligations for the exact binary/source distributed.
+
+AfterCheck's combined application and Stockfish JNI integration are distributed under GPLv3. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for third-party components and source references.
