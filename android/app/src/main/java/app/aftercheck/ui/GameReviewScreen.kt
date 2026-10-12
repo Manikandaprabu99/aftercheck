@@ -223,7 +223,8 @@ private fun MoveRow(move: MoveAnalysisEntity, selected: Boolean, onClick: () -> 
         ) {
             Column(Modifier.weight(1f)) {
                 Text("${move.plyNumber}. ${move.san}", color = ReviewPaper, fontWeight = FontWeight.SemiBold)
-                Text("Best: ${move.bestMoveUci} · loss ${move.centipawnLoss} cp", color = ReviewMuted, fontSize = 11.sp)
+                Text("Best: ${move.bestMoveSan.ifBlank { move.bestMoveUci }} · loss ${move.centipawnLoss} cp", color = ReviewMuted, fontSize = 11.sp)
+                if (move.principalVariationSan.isNotBlank()) Text("Line: ${move.principalVariationSan}", color = ReviewMuted, fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             Surface(color = classificationColor(move.classification), shape = RoundedCornerShape(20.dp)) {
                 Text(move.classification, color = ReviewBackground, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp))
