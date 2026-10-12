@@ -1,6 +1,9 @@
 package app.aftercheck.ui
 
 import android.content.Context
+import android.content.SharedPreferences
+import android.os.Handler
+import android.os.Looper
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -44,6 +47,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -146,11 +150,12 @@ private fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val prefs = remember { context.getSharedPreferences(ChessComSyncService.PREFS, Context.MODE_PRIVATE) }
-    val username = prefs.getString(ChessComSyncService.KEY_USERNAME, null).orEmpty()
-    val status = prefs.getString(ChessComSyncService.KEY_STATUS, "NOT_CONFIGURED").orEmpty()
-    val lastSync = prefs.getLong(ChessComSyncService.KEY_LAST_SYNC, 0L)
-    val error = prefs.getString(ChessComSyncService.KEY_ERROR, null)
-    val analysisError = prefs.getString("last_analysis_error", null)
+    val preferenceRevision = rememberPreferencesRevision(prefs)
+    val username = remember(preferenceRevision) { prefs.getString(ChessComSyncService.KEY_USERNAME, null).orEmpty() }
+    val status = remember(preferenceRevision) { prefs.getString(ChessComSyncService.KEY_STATUS, "NOT_CONFIGURED").orEmpty() }
+    val lastSync = remember(preferenceRevision) { prefs.getLong(ChessComSyncService.KEY_LAST_SYNC, 0L) }
+    val error = remember(preferenceRevision) { prefs.getString(ChessComSyncService.KEY_ERROR, null) }
+    val analysisError = remember(preferenceRevision) { prefs.getString("last_analysis_error", null) }
 
     LazyColumn(
         modifier = modifier.fillMaxSize().background(Night),
@@ -435,8 +440,9 @@ private fun classificationBackground(value: String): Color = when (value) {
 @Composable
 private fun SettingsScreen(context: Context, modifier: Modifier = Modifier) {
     val prefs = remember { context.getSharedPreferences(ChessComSyncService.PREFS, Context.MODE_PRIVATE) }
+    val preferenceRevision = rememberPreferencesRevision(prefs)
     var username by remember { mutableStateOf(prefs.getString(ChessComSyncService.KEY_USERNAME, "").orEmpty()) }
-    val analysisError = prefs.getString("last_analysis_error", null)
+    val analysisError = remember(preferenceRevision) { prefs.getString("last_analysis_error", null) }
     var message by remember { mutableStateOf<String?>(null) }
     var invalid by remember { mutableStateOf(false) }
 
@@ -491,6 +497,22 @@ private fun SettingsScreen(context: Context, modifier: Modifier = Modifier) {
             }
         }
     }
+}
+
+@Composable
+private fun rememberPreferencesRevision(prefs: SharedPreferences): Int {
+    var revision by remember(prefs) { mutableIntStateOf(0) }
+    DisposableEffect(prefs) {
+        val mainHandler = Handler(Looper.getMainLooper())
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+            mainHandler.post { revision++ }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose {
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
+    }
+    return revision
 }
 
 @Composable
