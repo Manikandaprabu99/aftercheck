@@ -150,6 +150,7 @@ private fun HomeScreen(
     val status = prefs.getString(ChessComSyncService.KEY_STATUS, "NOT_CONFIGURED").orEmpty()
     val lastSync = prefs.getLong(ChessComSyncService.KEY_LAST_SYNC, 0L)
     val error = prefs.getString(ChessComSyncService.KEY_ERROR, null)
+    val analysisError = prefs.getString("last_analysis_error", null)
 
     LazyColumn(
         modifier = modifier.fillMaxSize().background(Night),
@@ -214,6 +215,7 @@ private fun HomeScreen(
                         }
                     }
                     if (!error.isNullOrBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    if (!analysisError.isNullOrBlank()) Text("Analysis: $analysisError", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
                             onClick = {
@@ -434,6 +436,7 @@ private fun classificationBackground(value: String): Color = when (value) {
 private fun SettingsScreen(context: Context, modifier: Modifier = Modifier) {
     val prefs = remember { context.getSharedPreferences(ChessComSyncService.PREFS, Context.MODE_PRIVATE) }
     var username by remember { mutableStateOf(prefs.getString(ChessComSyncService.KEY_USERNAME, "").orEmpty()) }
+    val analysisError = prefs.getString("last_analysis_error", null)
     var message by remember { mutableStateOf<String?>(null) }
     var invalid by remember { mutableStateOf(false) }
 
@@ -483,7 +486,8 @@ private fun SettingsScreen(context: Context, modifier: Modifier = Modifier) {
             Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Background behavior", color = Paper, fontWeight = FontWeight.SemiBold)
                 Text("Periodic sync is scheduled every six hours when network access is available. WorkManager is OS-scheduled, so exact start times are not guaranteed.", color = Muted, fontSize = 12.sp)
-                Text("Analysis settings and local-data controls will be added with the engine/review modules.", color = Muted, fontSize = 12.sp)
+                Text("Stockfish analysis runs on-device. The official evaluation network is downloaded and verified once, then kept locally for offline reviews.", color = Muted, fontSize = 12.sp)
+                if (!analysisError.isNullOrBlank()) Text("Last analysis issue: $analysisError", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
             }
         }
     }
