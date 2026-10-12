@@ -41,9 +41,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import app.aftercheck.data.AfterCheckDatabase
 import app.aftercheck.data.ChessGameEntity
 import app.aftercheck.data.MoveAnalysisEntity
+import app.aftercheck.worker.AnalysisScheduler
+import kotlinx.coroutines.launch
 
 private val ReviewBackground = Color(0xFF101512)
 private val ReviewPanel = Color(0xFF1A211C)
@@ -59,7 +62,11 @@ fun GameReviewScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val dao = remember(database) { database.gameDao() }
+    val activeGame by dao.observeGame(game.url).collectAsState(initial = game)
+    val displayedGame = activeGame ?: game
     val moves by dao.observeMoveAnalyses(game.url).collectAsState(initial = emptyList())
     val summary by dao.observeReview(game.url).collectAsState(initial = null)
     var selectedIndex by remember(game.url) { mutableIntStateOf(0) }
@@ -86,9 +93,17 @@ fun GameReviewScreen(
         item {
             Card(colors = CardDefaults.cardColors(containerColor = ReviewPanel), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("${game.white}  vs  ${game.black}", color = ReviewPaper, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text("Result ${game.result}  ·  ${game.timeControl}", color = ReviewMuted, fontSize = 12.sp)
-                    Text(if (game.reviewStatus == "READY") "Local Stockfish analysis complete" else "Review status: ${game.reviewStatus.lowercase().replace('_', ' ')}", color = if (game.reviewStatus == "READY") ReviewGreen else ReviewMuted, fontSize = 12.sp)
+                    Text("${displayedGame.white}  vs  ${displayedGame.black}", color = ReviewPaper, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text("Result ${displayedGame.result}  ·  ${displayedGame.timeControl}", color = ReviewMuted, fontSize = 12.sp)
+                    Text(if (displayedGame.reviewStatus == "READY") "Local Stockfish analysis complete" else "Review status: ${displayedGame.reviewStatus.lowercase().replace('_', ' ')}", color = if (displayedGame.reviewStatus == "READY") ReviewGreen else ReviewMuted, fontSize = 12.sp)
+                    if (displayedGame.reviewStatus == "FAILED") {
+                        androidx.compose.material3.Button(onClick = {
+                            scope.launch {
+                                dao.setReviewStatus(displayedGame.url, "WAITING")
+                                AnalysisScheduler.enqueue(context)
+                            }
+                        }) { Text("Retry analysis") }
+                    }
                 }
             }
         }
@@ -140,7 +155,7 @@ fun GameReviewScreen(
             item {
                 Card(colors = CardDefaults.cardColors(containerColor = ReviewPanel), shape = RoundedCornerShape(18.dp)) {
                     Column(Modifier.padding(16.dp)) {
-                        Text(if (game.reviewStatus == "FAILED") "Analysis failed" else "Waiting for local analysis", color = ReviewPaper, fontWeight = FontWeight.SemiBold)
+                        Text(if (displayedGame.reviewStatus == "FAILED") "Analysis failed" else "Waiting for local analysis", color = ReviewPaper, fontWeight = FontWeight.SemiBold)
                         Text("AfterCheck needs the Stockfish engine bundled in the build and a replayable PGN before it can generate move classifications.", color = ReviewMuted, fontSize = 12.sp)
                     }
                 }
