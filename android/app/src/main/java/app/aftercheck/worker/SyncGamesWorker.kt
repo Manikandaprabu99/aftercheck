@@ -5,6 +5,8 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import app.aftercheck.data.AfterCheckDatabase
 import app.aftercheck.data.ChessComSyncService
+import java.io.IOException
+import kotlinx.coroutines.CancellationException
 
 class SyncGamesWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
@@ -22,9 +24,22 @@ class SyncGamesWorker(context: Context, params: WorkerParameters) : CoroutineWor
             AnalysisScheduler.enqueue(applicationContext)
             if (summary.hasMoreHistory) SyncScheduler.continueHistory(applicationContext)
             Result.success()
-        } catch (error: Exception) {
-            // WorkManager applies the configured exponential backoff for transient network/API failures.
+        } catch (cancelled: CancellationException) {
+            // Do not turn WorkManager cancellation into a successful, swallowed worker result.
+            prefs.edit().putString(ChessComSyncService.KEY_STATUS, "QUEUED").apply()
+            throw cancelled
+        } catch (error: IOException) {
+            // Transient network failures, throttling, and server failures use WorkManager backoff.
+            prefs.edit().putString(ChessComSyncService.KEY_STATUS, "RETRYING")
+                .putString(ChessComSyncService.KEY_ERROR, error.message ?: "Temporary sync failure")
+                .apply()
             Result.retry()
+        } catch (error: Exception) {
+            // Invalid username/non-public account responses should not retry forever.
+            prefs.edit().putString(ChessComSyncService.KEY_STATUS, "ERROR")
+                .putString(ChessComSyncService.KEY_ERROR, error.message ?: "Sync failed")
+                .apply()
+            Result.failure()
         }
     }
 }
