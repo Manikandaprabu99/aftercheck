@@ -61,6 +61,13 @@ jobs:
           make -j2 build ARCH=x86-64 COMP=ndk
           cp stockfish "$GITHUB_WORKSPACE/android/app/src/main/assets/engine/stockfish-x86_64"
 
+      - name: Save Stockfish engine cache even if app compilation fails
+        if: steps.stockfish-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: android/app/src/main/assets/engine/stockfish-*
+          key: aftercheck-stockfish-sf19-ndk27.2.12479018-v1
+
       - name: Install Gradle 8.9
         run: |
           curl --fail --location --retry 3 https://services.gradle.org/distributions/gradle-8.9-bin.zip -o "$RUNNER_TEMP/gradle.zip"
