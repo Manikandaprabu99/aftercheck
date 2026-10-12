@@ -20,7 +20,7 @@ mkdir -p "$ROOT/android/app/src/main/assets/engine"
 cp stockfish "$ROOT/android/app/src/main/assets/engine/stockfish-arm64-v8a"
 make clean
 make net
-make -j2 build ARCH=x86_64 COMP=ndk
+make -j2 build ARCH=x86-64 COMP=ndk
 cp stockfish "$ROOT/android/app/src/main/assets/engine/stockfish-x86_64"
 
 echo "Stockfish $TAG engine assets written under android/app/src/main/assets/engine/."
