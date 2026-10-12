@@ -1,25 +1,28 @@
-# Project status (initial foundation)
+# Project status (initial foundation + first review pipeline)
 
 ## Implemented in source
 
-- Native Android/Jetpack Compose foundation and a dark green-accented dashboard/navigation shell.
-- Room model/DAO/database for locally stored game archives.
-- Chess.com public profile archive-index and monthly PGN retrieval client. It uses username-only public archive access and does not request a password or cookies.
-- Initial PGN header parser and parser unit tests.
-- WorkManager periodic schedule (six hours) and one-off manual sync.
-- Incremental archive import in small batches, with local duplicate checks and continuation work.
-- GitHub Actions workflow intended to run tests and build a debug APK artifact.
+- Native Android project using Kotlin, Jetpack Compose, Material 3, Room and WorkManager.
+- Dark green-accented Home, Games, Insights, Practice and Settings shell; game rows open a move-by-move review screen with a rendered board and selectable plies.
+- Room game library, review summary table and per-move analysis table.
+- Chess.com documented public archive-index and monthly PGN retrieval. Username-only setup; no password, cookie, or private endpoint access.
+- Batched historical archive processing, per-username archive cursor, duplicate checks, explicit sync status and WorkManager continuation.
+- PGN header extraction and a SAN replay timeline with FEN before/after every ply.
+- Stockfish UCI process adapter and local review pipeline source: per-position evaluation, best move, principal variation, app-defined CP-loss classification and estimated side accuracy.
+- GitHub Actions workflow to build Stockfish 19 for Android, run unit tests, build a debug APK, upload it as an artifact and publish a checksum-bearing debug release for version tags.
+- Third-party Stockfish GPLv3 license text, upstream source link and local build recipe.
 
-## Not yet implemented / not yet verified
+## Not yet verified or complete
 
-- Stockfish native binary/engine integration, UCI lifecycle and evaluation pipeline.
-- Position reconstruction, move classification, best lines, analysis queue, per-game review details and practice mode.
-- Review-specific UI and robust move/variant parsing.
-- App/device emulator validation and confirmed green CI build.
-- Production release signing and stable release keystore setup.
-
-The application must not be described as a finished chess-review product or a tested APK until those remaining items are implemented and verification results are available.
+- The current GitHub Actions build has not yet completed successfully against the latest commit. Treat the APK as unavailable until a successful artifact appears in Actions.
+- No physical-device/emulator validation has been performed in this environment.
+- Analysis classification thresholds and accuracy formula are documented app estimates; they are not Chess.com's proprietary formulas.
+- The review screen renders FEN positions and lets the user select plies, but advanced annotations, an evaluation graph, interactive training puzzles, and rich opening analytics remain to be implemented.
+- The engine runs one Stockfish process per review, using a conservative depth setting. Performance and process-execution permissions require on-device verification.
+- Historical sync processes a few monthly archives at a time. Android can delay background WorkManager jobs, and Chess.com can publish games later than the match's end.
+- Private Chess.com games are not available through public archives; no unsupported account authorization or private API is assumed.
+- Release artifact is debug-signed by default, not a production-signed distribution. Set up a secure persistent release keystore for production installation/update flows.
 
 ## API/privacy boundaries
 
-A Chess.com username is sufficient only for games made available through public archive endpoints. This is not a login flow and will not access private data. Periodic WorkManager tasks are subject to Android scheduling. The archive client should respect errors, rate limits and publication delays.
+Only games exposed by Chess.com's documented public archive API can be imported. A username is not an authorization token. The app must not collect Chess.com passwords, extract session cookies, or bypass access controls. Periodic WorkManager tasks are subject to Android scheduling and battery policies.
