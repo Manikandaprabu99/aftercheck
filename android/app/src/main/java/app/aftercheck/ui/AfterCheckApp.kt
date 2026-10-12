@@ -1,6 +1,7 @@
 package app.aftercheck.ui
 
 import android.content.Context
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -81,6 +82,7 @@ fun AfterCheckApp(database: AfterCheckDatabase) {
     val reviewedCount by dao.observeReviewedCount().collectAsState(initial = 0)
     var selectedTab by remember { mutableIntStateOf(0) }
     var selectedGame by remember { mutableStateOf<ChessGameEntity?>(null) }
+    BackHandler(enabled = selectedGame != null) { selectedGame = null }
 
     Scaffold(
         containerColor = Night,
@@ -242,16 +244,37 @@ private fun HomeScreen(
 
 @Composable
 private fun GamesScreen(games: List<ChessGameEntity>, onGameClick: (ChessGameEntity) -> Unit, modifier: Modifier = Modifier) {
+    var searchQuery by remember { mutableStateOf("") }
+    val filteredGames = remember(games, searchQuery) {
+        val query = searchQuery.trim().lowercase(Locale.ROOT)
+        if (query.isBlank()) games else games.filter { game ->
+            listOf(game.white, game.black, game.opening, game.eco, game.result, game.timeControl)
+                .any { it.lowercase(Locale.ROOT).contains(query) }
+        }
+    }
     Column(modifier.fillMaxSize().background(Night).padding(horizontal = 20.dp, vertical = 24.dp)) {
         Text("Games", color = Paper, fontSize = 29.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(5.dp))
-        Text("Your locally stored completed games", color = Muted, fontSize = 13.sp)
-        Spacer(Modifier.height(18.dp))
-        if (games.isEmpty()) {
-            EmptyCard("No games yet", "Connect a Chess.com username in Settings. Only games available from supported public archives can be imported.")
+        Text("Search your locally stored game history", color = Muted, fontSize = 13.sp)
+        Spacer(Modifier.height(14.dp))
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("Opponent, opening, ECO or result") }
+        )
+        Spacer(Modifier.height(12.dp))
+        Text("${filteredGames.size} games", color = Muted, fontSize = 11.sp)
+        Spacer(Modifier.height(8.dp))
+        if (filteredGames.isEmpty()) {
+            EmptyCard(
+                if (games.isEmpty()) "No games yet" else "No matching games",
+                if (games.isEmpty()) "Connect a Chess.com username in Settings. Only games available from supported public archives can be imported." else "Try another opponent name, opening, ECO code, or result."
+            )
         } else {
             LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(games, key = { it.url }) { game -> GameCard(game) { onGameClick(game) } }
+                items(filteredGames, key = { it.url }) { game -> GameCard(game) { onGameClick(game) } }
             }
         }
     }
@@ -264,11 +287,25 @@ private fun InsightsScreen(games: List<ChessGameEntity>, modifier: Modifier = Mo
         Text("Patterns from your own games—not made-up stats.", color = Muted, fontSize = 13.sp)
         if (games.isEmpty()) EmptyCard("Insights will grow with your history", "Once your games are synchronized and analyzed, AfterCheck can summarize results, openings, and recurring mistakes.")
         else {
+            val username = games.firstOrNull()?.username.orEmpty()
+            val userWins = games.count { game ->
+                (game.white.equals(username, ignoreCase = true) && game.result == "1-0") ||
+                    (game.black.equals(username, ignoreCase = true) && game.result == "0-1")
+            }
+            val userLosses = games.count { game ->
+                (game.white.equals(username, ignoreCase = true) && game.result == "0-1") ||
+                    (game.black.equals(username, ignoreCase = true) && game.result == "1-0")
+            }
             val draws = games.count { it.result == "1/2-1/2" }
             val unknown = games.count { it.result == "*" }
             MetricCardWide("Games in this view", games.size.toString(), "Latest imported games")
-            MetricCardWide("Draws", draws.toString(), "Across the currently loaded game list")
-            MetricCardWide("Unfinished / unknown result", unknown.toString(), "These are excluded from win/loss claims")
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                MetricCard("Wins", userWins.toString(), Modifier.weight(1f))
+                MetricCard("Draws", draws.toString(), Modifier.weight(1f))
+                MetricCard("Losses", userLosses.toString(), Modifier.weight(1f))
+            }
+            MetricCardWide("Unfinished / unknown result", unknown.toString(), "Excluded from win/loss totals")
+            Text("Record for $username · latest imported games only", color = Muted, fontSize = 12.sp)
         }
     }
 }
