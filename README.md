@@ -14,13 +14,8 @@ AfterCheck aims to review completed chess games using Stockfish on your Android 
 - GitHub Actions builds and GitHub Releases for APK distribution
 
 ## Status
-Initial repository setup. See [Project status](docs/PROJECT_STATUS.md) for what is implemented and what remains. A source tree or configured workflow is not proof that an APK was built or tested; check Actions and Releases for verified results.
 
-## Important constraints
-- Sync can only retrieve games available through supported public archives or a documented authorization mechanism. The app must not collect Chess.com passwords, extract browser cookies, scrape private endpoints, or bypass access controls.
-- WorkManager schedules periodic sync but Android decides when it runs; Chess.com may also publish a game after a delay.
-- No app-imposed daily review quota is planned. Throughput, battery usage, and storage still depend on the device.
-- Engine-driven move classifications and accuracy are estimates based on documented app methodology, not claims to reproduce Chess.com's proprietary algorithms.
+See [Project status](docs/PROJECT_STATUS.md) for implementation and verification details. The first review pipeline and local Stockfish build integration are present in source, but the app is not considered complete and no APK is described as tested until the current GitHub Actions build succeeds.
 
 ## Build
 Open the `android/` directory in Android Studio with JDK 17 and Android SDK 35 installed. GitHub Actions is configured to build a debug APK and upload it as a workflow artifact. See [Build guide](docs/BUILD.md).
