@@ -44,6 +44,9 @@ interface GameDao {
     @Query("SELECT * FROM move_analyses WHERE gameUrl = :gameUrl ORDER BY plyNumber")
     fun observeMoveAnalyses(gameUrl: String): Flow<List<MoveAnalysisEntity>>
 
+    @Query("SELECT * FROM move_analyses WHERE classification IN ('INACCURACY', 'MISTAKE', 'BLUNDER') ORDER BY centipawnLoss DESC LIMIT 250")
+    fun observePracticePositions(): Flow<List<MoveAnalysisEntity>>
+
     @Query("SELECT * FROM game_reviews WHERE gameUrl = :gameUrl LIMIT 1")
     suspend fun getReview(gameUrl: String): GameReviewEntity?
 
