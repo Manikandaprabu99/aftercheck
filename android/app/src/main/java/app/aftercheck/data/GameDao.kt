@@ -29,6 +29,30 @@ interface GameDao {
     @Query("SELECT EXISTS(SELECT 1 FROM games WHERE url = :url)")
     suspend fun contains(url: String): Boolean
 
+    @Query("SELECT * FROM games WHERE reviewStatus = 'WAITING' ORDER BY endTimeEpochMs DESC LIMIT 1")
+    suspend fun nextWaitingForReview(): ChessGameEntity?
+
+    @Query("UPDATE games SET reviewStatus = :status WHERE url = :url")
+    suspend fun setReviewStatus(url: String, status: String)
+
+    @Query("UPDATE games SET reviewStatus = 'WAITING' WHERE reviewStatus = 'ANALYZING'")
+    suspend fun recoverInterruptedReviews()
+
+    @Query("SELECT * FROM move_analyses WHERE gameUrl = :gameUrl ORDER BY plyNumber")
+    fun observeMoveAnalyses(gameUrl: String): Flow<List<MoveAnalysisEntity>>
+
+    @Query("SELECT * FROM game_reviews WHERE gameUrl = :gameUrl LIMIT 1")
+    suspend fun getReview(gameUrl: String): GameReviewEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertMoveAnalyses(rows: List<MoveAnalysisEntity>)
+
+    @Query("DELETE FROM move_analyses WHERE gameUrl = :gameUrl")
+    suspend fun deleteMoveAnalyses(gameUrl: String)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertReview(review: GameReviewEntity)
+
     @Query("DELETE FROM games WHERE url = :url")
     suspend fun delete(url: String)
 
