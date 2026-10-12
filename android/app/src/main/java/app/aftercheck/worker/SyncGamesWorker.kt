@@ -19,6 +19,7 @@ class SyncGamesWorker(context: Context, params: WorkerParameters) : CoroutineWor
             val database = AfterCheckDatabase.get(applicationContext)
             val summary = ChessComSyncService(applicationContext, database.gameDao())
                 .sync(username, archiveBatchSize = 3)
+            AnalysisScheduler.enqueue(applicationContext)
             if (summary.hasMoreHistory) SyncScheduler.continueHistory(applicationContext)
             Result.success()
         } catch (error: Exception) {
