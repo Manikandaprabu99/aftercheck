@@ -56,7 +56,7 @@ object GameReviewProcessor {
             gameUrl = game.url,
             evaluatedPlies = moveRows.size,
             accuracyWhite = estimateAccuracy(whiteLosses),
-            accuracyBlack = estimateAccuracyForTest(blackLosses),
+            accuracyBlack = estimateAccuracy(blackLosses),
             bestMoves = moveRows.count { it.classification == "BEST" },
             excellentMoves = moveRows.count { it.classification == "EXCELLENT" },
             goodMoves = moveRows.count { it.classification == "GOOD" },
@@ -79,6 +79,6 @@ object GameReviewProcessor {
         else -> "BLUNDER"
     }
 
-    internal fun estimateAccuracyForTest(losses: List<Int>): Double =
+    internal fun estimateAccuracy(losses: List<Int>): Double =
         if (losses.isEmpty()) 0.0 else losses.map { 100.0 * exp(-it.coerceAtLeast(0) / 350.0) }.average()
 }
