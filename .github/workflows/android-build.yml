@@ -12,7 +12,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: aftercheck-build-v2-${{ github.ref }}
+  group: aftercheck-build-v3-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -33,40 +33,19 @@ jobs:
         with:
           packages: platform-tools
 
-      - name: Install Android SDK and NDK packages
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+      - name: Install Android SDK, NDK and CMake
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
 
-      - name: Cache Stockfish engine binaries
-        id: stockfish-cache
-        uses: actions/cache@v4
-        with:
-          path: android/app/src/main/assets/engine/stockfish-*
-          key: aftercheck-stockfish-sf19-ndk27.2.12479018-v1
-
-      - name: Build Stockfish 19 for Android
-        if: steps.stockfish-cache.outputs.cache-hit != 'true'
+      - name: Fetch pinned Stockfish source for JNI build
         env:
           STOCKFISH_TAG: sf_19
         run: |
           set -euxo pipefail
           git clone --depth 1 --branch "$STOCKFISH_TAG" https://github.com/official-stockfish/Stockfish.git "$RUNNER_TEMP/stockfish"
-          export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/27.2.12479018"
-          export PATH="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
-          cd "$RUNNER_TEMP/stockfish/src"
-          make net
-          make -j2 build ARCH=armv8 COMP=ndk
-          mkdir -p "$GITHUB_WORKSPACE/android/app/src/main/assets/engine"
-          cp stockfish "$GITHUB_WORKSPACE/android/app/src/main/assets/engine/stockfish-arm64-v8a"
-          make clean
-          make -j2 build ARCH=x86-64 COMP=ndk
-          cp stockfish "$GITHUB_WORKSPACE/android/app/src/main/assets/engine/stockfish-x86_64"
-
-      - name: Save Stockfish engine cache even if app compilation fails
-        if: steps.stockfish-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: android/app/src/main/assets/engine/stockfish-*
-          key: aftercheck-stockfish-sf19-ndk27.2.12479018-v1
+          mkdir -p android/app/src/main/cpp/stockfish
+          cp -a "$RUNNER_TEMP/stockfish/src/." android/app/src/main/cpp/stockfish/
+          test -f android/app/src/main/cpp/stockfish/uci.cpp
+          test -f android/app/src/main/cpp/stockfish/evaluate.h
 
       - name: Install Gradle 8.9
         run: |
@@ -76,9 +55,7 @@ jobs:
 
       - name: Run unit tests and build debug APK
         working-directory: android
-        run: |
-          gradle testDebugUnitTest
-          gradle assembleDebug
+        run: gradle testDebugUnitTest assembleDebug
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -104,6 +81,7 @@ jobs:
           generate_release_notes: true
           body: |
             This is a debug APK intended for early testing, not a production-signed release.
-            It bundles Stockfish 19 (GPLv3). The corresponding source and license are documented
-            in third_party/stockfish/README.md. Configure secure release signing before distribution
-            as a production app.
+            It contains a JNI-built Stockfish 19 shared library (GPLv3) and downloads the official
+            matching NNUE network at first analysis. Corresponding source and licensing information
+            are documented in third_party/stockfish/README.md. Configure secure release signing
+            before distributing a production app.
