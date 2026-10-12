@@ -11,6 +11,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: aftercheck-android-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -32,7 +36,15 @@ jobs:
       - name: Install Android SDK and NDK packages
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
 
+      - name: Cache Stockfish engine binaries
+        id: stockfish-cache
+        uses: actions/cache@v4
+        with:
+          path: android/app/src/main/assets/engine/stockfish-*
+          key: aftercheck-stockfish-sf19-ndk27.2.12479018-v1
+
       - name: Build Stockfish 19 for Android
+        if: steps.stockfish-cache.outputs.cache-hit != 'true'
         env:
           STOCKFISH_TAG: sf_19
         run: |
