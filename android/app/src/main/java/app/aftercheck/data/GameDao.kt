@@ -11,6 +11,9 @@ interface GameDao {
     @Query("SELECT * FROM games ORDER BY endTimeEpochMs DESC LIMIT :limit")
     fun observeRecent(limit: Int = 100): Flow<List<ChessGameEntity>>
 
+    @Query("SELECT * FROM games WHERE url = :url LIMIT 1")
+    fun observeGame(url: String): Flow<ChessGameEntity?>
+
     @Query("SELECT * FROM games ORDER BY endTimeEpochMs DESC")
     suspend fun allGames(): List<ChessGameEntity>
 
