@@ -55,8 +55,8 @@ object GameReviewProcessor {
         val summary = GameReviewEntity(
             gameUrl = game.url,
             evaluatedPlies = moveRows.size,
-            accuracyWhite = estimateAccuracy(whiteLosses),
-            accuracyBlack = estimateAccuracy(blackLosses),
+            accuracyWhite = estimateAccuracyForTest(whiteLosses),
+            accuracyBlack = estimateAccuracyForTest(blackLosses),
             bestMoves = moveRows.count { it.classification == "BEST" },
             excellentMoves = moveRows.count { it.classification == "EXCELLENT" },
             goodMoves = moveRows.count { it.classification == "GOOD" },
@@ -79,6 +79,6 @@ object GameReviewProcessor {
         else -> "BLUNDER"
     }
 
-    private fun estimateAccuracy(losses: List<Int>): Double =
+    internal fun estimateAccuracyForTest(losses: List<Int>): Double =
         if (losses.isEmpty()) 0.0 else losses.map { 100.0 * exp(-it.coerceAtLeast(0) / 350.0) }.average()
 }
