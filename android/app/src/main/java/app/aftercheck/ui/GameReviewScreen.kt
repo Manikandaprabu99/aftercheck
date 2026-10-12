@@ -172,7 +172,7 @@ fun GameReviewScreen(
 }
 
 @Composable
-private fun ChessBoard(fen: String, modifier: Modifier = Modifier) {
+internal fun ChessBoard(fen: String, modifier: Modifier = Modifier) {
     val placement = fen.substringBefore(' ')
     val ranks = placement.split('/')
     if (ranks.size != 8) {
