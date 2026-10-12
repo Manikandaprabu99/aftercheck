@@ -7,6 +7,8 @@ import app.aftercheck.analysis.GameReviewProcessor
 import app.aftercheck.data.AfterCheckDatabase
 import app.aftercheck.data.ChessComSyncService
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import java.io.IOException
 
 class ReviewWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
@@ -20,11 +22,13 @@ class ReviewWorker(context: Context, params: WorkerParameters) : CoroutineWorker
             GameReviewProcessor.review(applicationContext, dao, game, depth = 10) { done, total ->
                 setProgress(androidx.work.workDataOf("position" to done, "total" to total))
             }
+            applicationContext.getSharedPreferences(ChessComSyncService.PREFS, Context.MODE_PRIVATE)
+                .edit().remove("last_analysis_error").apply()
             if (dao.nextWaitingForReview() != null) AnalysisScheduler.enqueue(applicationContext)
             Result.success()
         } catch (cancelled: CancellationException) {
             // Leave this game resumable if Android stops a long review.
-            dao.setReviewStatus(game.url, "WAITING")
+            withContext(NonCancellable) { dao.setReviewStatus(game.url, "WAITING") }
             throw cancelled
         } catch (error: IOException) {
             // Do not mark every queued game failed if the first-time network download is unavailable.
