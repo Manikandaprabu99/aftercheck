@@ -2,6 +2,7 @@ package app.aftercheck.analysis
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class StockfishEngineTest {
@@ -13,7 +14,7 @@ class StockfishEngineTest {
         )
         assertEquals(12, result.depth)
         assertEquals(-23, result.scoreCp)
-        assertEquals(null, result.mateIn)
+        assertTrue(result.mateIn == null)
         assertEquals("e2e4", result.bestMoveUci)
         assertEquals("e2e4 e7e5 g1f3", result.principalVariationUci)
     }
