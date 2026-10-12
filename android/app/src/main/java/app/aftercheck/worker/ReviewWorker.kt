@@ -6,6 +6,7 @@ import androidx.work.WorkerParameters
 import app.aftercheck.analysis.GameReviewProcessor
 import app.aftercheck.data.AfterCheckDatabase
 import app.aftercheck.data.ChessComSyncService
+import kotlinx.coroutines.CancellationException
 
 class ReviewWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
@@ -20,6 +21,10 @@ class ReviewWorker(context: Context, params: WorkerParameters) : CoroutineWorker
             }
             if (dao.nextWaitingForReview() != null) AnalysisScheduler.enqueue(applicationContext)
             Result.success()
+        } catch (cancelled: CancellationException) {
+            // Leave this game resumable if Android stops a long review.
+            dao.setReviewStatus(game.url, "WAITING")
+            throw cancelled
         } catch (error: Exception) {
             dao.setReviewStatus(game.url, "FAILED")
             applicationContext.getSharedPreferences(ChessComSyncService.PREFS, Context.MODE_PRIVATE)
