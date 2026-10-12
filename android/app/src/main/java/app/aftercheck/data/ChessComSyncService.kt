@@ -20,7 +20,7 @@ class ChessComSyncService(
         const val KEY_STATUS = "status"
         const val KEY_LAST_SYNC = "last_sync_ms"
         const val KEY_ERROR = "last_error"
-        private const val KEY_PROCESSED_ARCHIVES = "processed_archives"
+        private const val KEY_PROCESSED_ARCHIVES_PREFIX = "processed_archives_"
     }
 
     suspend fun sync(usernameInput: String, archiveBatchSize: Int = 3): SyncSummary {
@@ -34,7 +34,8 @@ class ChessComSyncService(
                 return SyncSummary(0, 0, false)
             }
 
-            val completed = prefs.getStringSet(KEY_PROCESSED_ARCHIVES, emptySet())
+            val processedArchivesKey = KEY_PROCESSED_ARCHIVES_PREFIX + username
+            val completed = prefs.getStringSet(processedArchivesKey, emptySet())
                 ?.toMutableSet() ?: mutableSetOf()
             // Always refresh the newest archive in case games were published since the last run.
             val latest = archiveUrls.last()
@@ -54,7 +55,7 @@ class ChessComSyncService(
                 }
                 completed.add(archiveUrl)
                 processedCount++
-                prefs.edit().putStringSet(KEY_PROCESSED_ARCHIVES, completed.toSet()).apply()
+                prefs.edit().putStringSet(processedArchivesKey, completed.toSet()).apply()
             }
 
             val hasMore = archiveUrls.any { it !in completed }
