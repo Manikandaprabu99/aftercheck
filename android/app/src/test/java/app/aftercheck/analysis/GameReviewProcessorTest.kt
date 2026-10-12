@@ -18,7 +18,7 @@ class GameReviewProcessorTest {
 
     @Test
     fun accuracyEstimateIsBoundedAndPunishesLargerLosses() {
-        val lowLoss = GameReviewProcessor.estimateAccuracyForTest(listOf(5, 10))
+        val lowLoss = GameReviewProcessor.estimateAccuracy(listOf(5, 10))
         val highLoss = GameReviewProcessor.estimateAccuracyForTest(listOf(100, 300))
         assertTrue(lowLoss in 0.0..100.0)
         assertTrue(highLoss in 0.0..100.0)
