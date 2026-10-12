@@ -44,6 +44,9 @@ interface GameDao {
     @Query("SELECT * FROM game_reviews WHERE gameUrl = :gameUrl LIMIT 1")
     suspend fun getReview(gameUrl: String): GameReviewEntity?
 
+    @Query("SELECT * FROM game_reviews WHERE gameUrl = :gameUrl LIMIT 1")
+    fun observeReview(gameUrl: String): Flow<GameReviewEntity?>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertMoveAnalyses(rows: List<MoveAnalysisEntity>)
 
