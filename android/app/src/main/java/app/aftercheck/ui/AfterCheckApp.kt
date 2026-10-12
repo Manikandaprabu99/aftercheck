@@ -58,6 +58,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
+import app.aftercheck.analysis.PracticePuzzleFactory
 import app.aftercheck.data.AfterCheckDatabase
 import app.aftercheck.data.ChessComSyncService
 import app.aftercheck.data.ChessGameEntity
@@ -127,7 +128,7 @@ fun AfterCheckApp(database: AfterCheckDatabase) {
             )
             1 -> GamesScreen(games = games, onGameClick = openGame, modifier = Modifier.padding(padding))
             2 -> InsightsScreen(games = games, modifier = Modifier.padding(padding))
-            3 -> PracticeScreen(modifier = Modifier.padding(padding))
+            3 -> PracticeScreen(database = database, modifier = Modifier.padding(padding))
             else -> SettingsScreen(context = context, modifier = Modifier.padding(padding))
         }
     }
@@ -311,12 +312,121 @@ private fun InsightsScreen(games: List<ChessGameEntity>, modifier: Modifier = Mo
 }
 
 @Composable
-private fun PracticeScreen(modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxSize().background(Night).padding(20.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
-        Text("Practice", color = Paper, fontSize = 29.sp, fontWeight = FontWeight.Bold)
-        Text("Train from positions in your own completed games.", color = Muted, fontSize = 13.sp)
-        EmptyCard("Your personal training set is being built", "Once local Stockfish analysis is integrated, critical positions and missed tactics can become interactive practice puzzles.")
+private fun PracticeScreen(database: AfterCheckDatabase, modifier: Modifier = Modifier) {
+    val dao = remember(database) { database.gameDao() }
+    val practicePositions by dao.observePracticePositions().collectAsState(initial = emptyList())
+    var positionIndex by remember { mutableIntStateOf(0) }
+    val safeIndex = if (practicePositions.isEmpty()) 0 else positionIndex.coerceIn(0, practicePositions.lastIndex)
+    val puzzle = practicePositions.getOrNull(safeIndex)
+    val options = remember(puzzle) { puzzle?.let { PracticePuzzleFactory.options(it) }.orEmpty() }
+    var selectedUci by remember(puzzle?.gameUrl, puzzle?.plyNumber) { mutableStateOf<String?>(null) }
+    val selectedOption = options.firstOrNull { it.uci == selectedUci }
+    val bestOption = options.firstOrNull { it.isBestMove }
+
+    LazyColumn(
+        modifier = modifier.fillMaxSize().background(Night),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(15.dp)
+    ) {
+        item {
+            Text("Practice", color = Paper, fontSize = 29.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(5.dp))
+            Text("Find a stronger move from your own analyzed games.", color = Muted, fontSize = 13.sp)
+        }
+        if (puzzle == null) {
+            item {
+                EmptyCard(
+                    "Your training set is being built",
+                    "Analyze completed games first. Positions classified as inaccuracies, mistakes, or blunders will become practice questions."
+                )
+            }
+        } else if (options.size < 2 || bestOption == null) {
+            item {
+                EmptyCard(
+                    "This position cannot be turned into a quiz",
+                    "The recorded engine move could not be matched against legal moves from this position. Other practice positions may still be available."
+                )
+            }
+            item {
+                Button(
+                    onClick = { positionIndex = if (positionIndex < practicePositions.lastIndex) positionIndex + 1 else 0 },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Next position") }
+            }
+        } else {
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.weight(1f)) {
+                        Text("POSITION ${safeIndex + 1} OF ${practicePositions.size}", color = Lime, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                        Text(if (puzzle.fenBefore.split(' ').getOrNull(1) == "b") "Black to move" else "White to move", color = Paper, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    Surface(color = classificationBackground(puzzle.classification), shape = RoundedCornerShape(20.dp)) {
+                        Text(puzzle.classification, color = Night, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp))
+                    }
+                }
+            }
+            item {
+                Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(22.dp)) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        ChessBoard(fen = puzzle.fenBefore, modifier = Modifier.fillMaxWidth().aspectRatio(1f))
+                        Text("Choose the strongest move", color = Paper, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Pick one legal move. The engine recommendation stays hidden until you answer.", color = Muted, fontSize = 12.sp)
+                    }
+                }
+            }
+            items(options, key = { puzzle.gameUrl + ":" + puzzle.plyNumber + ":" + it.uci }) { option ->
+                Button(
+                    onClick = { selectedUci = option.uci },
+                    enabled = selectedUci == null,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (selectedUci != null && option.uci == bestOption.uci) Color(0xFF9BE36D) else PanelRaised,
+                        contentColor = if (selectedUci != null && option.uci == bestOption.uci) Night else Paper,
+                        disabledContainerColor = if (selectedUci != null && option.uci == bestOption.uci) Color(0xFF9BE36D) else Panel
+                    )
+                ) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(option.san, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                        Spacer(Modifier.weight(1f))
+                        if (selectedUci != null && option.uci == bestOption.uci) Text("ENGINE BEST", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        else if (selectedUci == option.uci) Text("YOUR PICK", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            if (selectedOption != null) {
+                item {
+                    Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(20.dp)) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                if (selectedOption.isBestMove) "Correct — that is the engine's top move." else "Not the engine's top choice.",
+                                color = if (selectedOption.isBestMove) Lime else Color(0xFFF0D36A),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                            Text("In the game you played ${puzzle.san}. The engine's best move was ${bestOption.san.ifBlank { puzzle.bestMoveUci }}.", color = Paper, fontSize = 13.sp)
+                            Text("The recorded evaluation swing was ${puzzle.centipawnLoss} centipawns at depth ${puzzle.depth}. This is AfterCheck's estimate, not Chess.com's official score.", color = Muted, fontSize = 12.sp)
+                            if (puzzle.principalVariationSan.isNotBlank()) {
+                                Text("Suggested line: ${puzzle.principalVariationSan}", color = Muted, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+                item {
+                    Button(
+                        onClick = { positionIndex = if (positionIndex < practicePositions.lastIndex) positionIndex + 1 else 0 },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Lime, contentColor = Night)
+                    ) { Text(if (safeIndex < practicePositions.lastIndex) "Next position" else "Start again") }
+                }
+            }
+        }
     }
+}
+
+private fun classificationBackground(value: String): Color = when (value) {
+    "INACCURACY" -> Color(0xFFF0D36A)
+    "MISTAKE" -> Color(0xFFF0A45A)
+    else -> Color(0xFFFF887E)
 }
 
 @Composable
