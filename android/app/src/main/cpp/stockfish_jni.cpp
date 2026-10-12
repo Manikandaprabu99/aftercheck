@@ -1,4 +1,4 @@
-// GPL-3.0-or-later: JNI bridge for running the unmodified Stockfish UCI loop in-process.
+// GPL-3.0-only: JNI bridge for running the unmodified Stockfish UCI loop in-process.
 #include <jni.h>
 
 #include <atomic>
