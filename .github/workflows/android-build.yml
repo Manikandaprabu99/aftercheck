@@ -12,7 +12,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: aftercheck-build-v4-${{ github.ref }}
+  group: aftercheck-build-v5-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
