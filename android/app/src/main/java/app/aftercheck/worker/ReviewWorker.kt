@@ -7,6 +7,7 @@ import app.aftercheck.analysis.GameReviewProcessor
 import app.aftercheck.data.AfterCheckDatabase
 import app.aftercheck.data.ChessComSyncService
 import kotlinx.coroutines.CancellationException
+import java.io.IOException
 
 class ReviewWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
@@ -25,6 +26,12 @@ class ReviewWorker(context: Context, params: WorkerParameters) : CoroutineWorker
             // Leave this game resumable if Android stops a long review.
             dao.setReviewStatus(game.url, "WAITING")
             throw cancelled
+        } catch (error: IOException) {
+            // Do not mark every queued game failed if the first-time network download is unavailable.
+            dao.setReviewStatus(game.url, "WAITING")
+            applicationContext.getSharedPreferences(ChessComSyncService.PREFS, Context.MODE_PRIVATE)
+                .edit().putString("last_analysis_error", error.message ?: "Temporary engine/network failure").apply()
+            Result.retry()
         } catch (error: Exception) {
             dao.setReviewStatus(game.url, "FAILED")
             applicationContext.getSharedPreferences(ChessComSyncService.PREFS, Context.MODE_PRIVATE)
