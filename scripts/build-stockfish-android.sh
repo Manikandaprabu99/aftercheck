@@ -1,26 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ -z "${ANDROID_NDK_HOME:-}" || ! -d "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin" ]]; then
-  echo "Set ANDROID_NDK_HOME to your installed Android NDK directory (Linux host)." >&2
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+STOCKFISH_TAG="sf_19"
+TEMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TEMP_ROOT"' EXIT
+
+if ! command -v git >/dev/null 2>&1; then
+  echo "git is required to fetch the pinned Stockfish source." >&2
+  exit 2
+fi
+if ! command -v gradle >/dev/null 2>&1; then
+  echo "Gradle 8.9 or a project Gradle wrapper is required. Open android/ in Android Studio or install Gradle 8.9." >&2
   exit 2
 fi
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
-TAG="sf_19"
+git clone --depth 1 --branch "$STOCKFISH_TAG" https://github.com/official-stockfish/Stockfish.git "$TEMP_ROOT/Stockfish"
+NATIVE_SOURCE="$ROOT/android/app/src/main/cpp/stockfish"
+mkdir -p "$NATIVE_SOURCE"
+rm -rf "$NATIVE_SOURCE"/*
+cp -a "$TEMP_ROOT/Stockfish/src/." "$NATIVE_SOURCE/"
 
-git clone --depth 1 --branch "$TAG" https://github.com/official-stockfish/Stockfish.git "$WORK/Stockfish"
-export PATH="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
-cd "$WORK/Stockfish/src"
-make net
-make -j2 build ARCH=armv8 COMP=ndk
-mkdir -p "$ROOT/android/app/src/main/assets/engine"
-cp stockfish "$ROOT/android/app/src/main/assets/engine/stockfish-arm64-v8a"
-make clean
-make net
-make -j2 build ARCH=x86-64 COMP=ndk
-cp stockfish "$ROOT/android/app/src/main/assets/engine/stockfish-x86_64"
-
-echo "Stockfish $TAG engine assets written under android/app/src/main/assets/engine/."
+cd "$ROOT/android"
+gradle testDebugUnitTest assembleDebug
+echo "Debug APK: $ROOT/android/app/build/outputs/apk/debug/app-debug.apk"
