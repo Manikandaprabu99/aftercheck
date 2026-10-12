@@ -151,7 +151,7 @@ object StockfishEngine {
                 lastError = error
             }
         }
-        throw IllegalStateException(
+        throw IOException(
             "The first analysis needs the official Stockfish evaluation network. Connect to the internet once, then retry.",
             lastError
         )
