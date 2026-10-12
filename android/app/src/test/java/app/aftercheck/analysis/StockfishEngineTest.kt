@@ -20,6 +20,14 @@ class StockfishEngineTest {
     }
 
     @Test
+    fun convertsSideToMoveScoresToWhitePerspective() {
+        val whiteToMove = EnginePositionResult(10, "e2e4", 75, null, "e2e4")
+        val blackToMove = EnginePositionResult(10, "e7e5", 75, null, "e7e5")
+        assertEquals(75, whiteToMove.scoreFromWhitePerspective("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"))
+        assertEquals(-75, blackToMove.scoreFromWhitePerspective("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1"))
+    }
+
+    @Test
     fun parsesMateScore() {
         val result = StockfishEngine.parseInfo(
             "info depth 16 score mate 3 nodes 543 pv f7f8",
