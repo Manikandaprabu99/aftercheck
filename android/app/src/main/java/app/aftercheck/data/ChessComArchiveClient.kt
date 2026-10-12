@@ -47,7 +47,16 @@ class ChessComArchiveClient {
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
             val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
             if (code !in 200..299) {
-                throw IllegalStateException("Chess.com archive request failed (HTTP $code).")
+                val message = "Chess.com archive request failed (HTTP $code)."
+                when {
+                    code == HttpURLConnection.HTTP_CLIENT_TIMEOUT ||
+                        code == 429 ||
+                        code >= 500 -> throw IOException(message)
+                    code == HttpURLConnection.HTTP_UNAUTHORIZED ||
+                        code == HttpURLConnection.HTTP_FORBIDDEN ->
+                        throw IllegalStateException("$message Only public archive data is supported.")
+                    else -> throw IllegalArgumentException(message)
+                }
             }
             return body
         } finally {
@@ -95,8 +104,7 @@ internal fun parsePgnArchive(
                 result = result,
                 endTimeEpochMs = epoch,
                 timeControl = header(block, "TimeControl").ifBlank { "Unknown" },
-                rated = header(block, "Event").contains("rated", ignoreCase = true) ||
-                    header(block, "Event").contains("blitz", ignoreCase = true),
+                rated = header(block, "Rated").equals("true", ignoreCase = true),
                 opening = header(block, "Opening"),
                 eco = header(block, "ECO"),
                 pgn = block.trim(),
