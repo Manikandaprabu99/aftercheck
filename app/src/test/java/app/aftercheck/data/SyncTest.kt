@@ -1,6 +1,7 @@
 package app.aftercheck.data
 
 import app.aftercheck.data.chesscom.ArchiveParser
+import app.aftercheck.data.chesscom.ArchiveUnavailableException
 import app.aftercheck.data.chesscom.ChessComApi
 import app.aftercheck.data.chesscom.Fetch
 import app.aftercheck.data.chesscom.HttpClient
@@ -131,6 +132,18 @@ class ChessComApiTest {
         val profile = ChessComApi(http, base, sleep = {}).profile("TestUser")
         assertEquals("TestUser", profile.username)
         assertEquals(2, http.requests.size)
+    }
+
+    @Test fun chessComInternalErrorIsNotTreatedAsMissing() = runTest {
+        // Observed live: Chess.com answers 404 with its own error document when it can't build an archive.
+        val url = "$base/player/testuser/games/2026/10"
+        val body = """{"code":0,"message":"An internal error has occurred. Please contact Chess.com Developer's Forum for further help"}"""
+        val http = FakeHttp(mutableMapOf(url to mutableListOf(HttpResponse(404, body, emptyMap()))))
+        val e = runCatching { ChessComApi(http, base, sleep = {}).monthGames(url, null, null) }.exceptionOrNull()
+        assertTrue(e is ArchiveUnavailableException)
+        assertEquals(1, http.requests.size) // persistent server-side error: no pointless retries
+        assertFalse(ChessComApi.isInternalError(null))
+        assertFalse(ChessComApi.isInternalError("""{"message":"User not found"}"""))
     }
 
     @Test fun unknownPlayerIsNotFound() = runTest {
@@ -282,6 +295,32 @@ class SyncEngineTest {
         val retry = engine(http, store).sync(user, null, 12)
         assertEquals(3, store.games.size)
         assertEquals(2, retry.newGames)
+    }
+
+    @Test fun anUnavailableMonthIsRetriedLaterWithoutBlockingOthers() = runTest {
+        val months = mapOf(
+            (2024 to 5) to ArchiveFixtures.month(ArchiveFixtures.game("may", t(2024, 5, 2))),
+            (2024 to 6) to """{"code":0,"message":"An internal error has occurred."}""",
+            (2024 to 7) to ArchiveFixtures.month(ArchiveFixtures.game("jul", t(2024, 7, 2))),
+        )
+        val (http, store) = setup(months)
+        // Serve June as Chess.com's internal-error 404.
+        val juneUrl = monthUrl(2024, 6)
+        val routes = mutableMapOf<String, MutableList<HttpResponse>>()
+        http.requests.clear()
+        val failing = FakeHttp(routes.apply {
+            put(archivesUrl, mutableListOf(FakeHttp.ok("""{"archives":["${monthUrl(2024, 5)}","$juneUrl","${monthUrl(2024, 7)}"]}""", "\"idx\"")))
+            put(monthUrl(2024, 5), mutableListOf(FakeHttp.ok(months.getValue(2024 to 5))))
+            put(juneUrl, mutableListOf(HttpResponse(404, months.getValue(2024 to 6), emptyMap())))
+            put(monthUrl(2024, 7), mutableListOf(FakeHttp.ok(months.getValue(2024 to 7))))
+        })
+        val result = engine(failing, store).sync(user, null, 12)
+        assertEquals(2, result.newGames)
+        assertEquals(listOf(juneUrl), result.unavailable.map { it.url })
+        assertTrue(result.historyComplete)
+        // June is not marked complete, so the next sync asks for it again.
+        assertFalse(store.archives[juneUrl]!!.complete)
+        assertTrue(store.archives[monthUrl(2024, 5)]!!.complete)
     }
 
     @Test fun variantsAreCountedAndSkipped() = runTest {

@@ -48,6 +48,12 @@ class TransientApiException(message: String, cause: Throwable? = null) : ApiExce
 
 class NotFoundException(message: String) : ApiException(message)
 
+/**
+ * Chess.com answered with its own error document (`{"code":0,"message":"An internal error…"}`), which it
+ * sends with HTTP 404 when it can't build one archive. The archive exists; ask again later.
+ */
+class ArchiveUnavailableException(message: String) : ApiException(message)
+
 sealed interface Fetch<out T> {
     data class Fresh<T>(val value: T, val etag: String?, val lastModified: String?) : Fetch<T>
     data object NotModified : Fetch<Nothing>
@@ -106,7 +112,11 @@ class ChessComApi(
             }
             when (response.code) {
                 200, 304 -> return response
-                404, 410 -> throw NotFoundException("Not found on Chess.com (${url.substringAfter("/pub")})")
+                404, 410 -> {
+                    val path = url.substringAfter("/pub")
+                    if (isInternalError(response.body)) throw ArchiveUnavailableException("Chess.com couldn't serve $path (an internal error on their side)")
+                    throw NotFoundException("Not found on Chess.com ($path)")
+                }
                 429 -> {
                     lastError = TransientApiException("Chess.com rate limit reached")
                     val retryAfter = response.header("retry-after")?.toLongOrNull()?.coerceIn(1, 120)
@@ -125,6 +135,10 @@ class ChessComApi(
 
     companion object {
         const val DEFAULT_BASE_URL = "https://api.chess.com/pub"
+
+        /** Chess.com's error documents carry `"code": 0`; a genuine missing resource has no body or a different one. */
+        fun isInternalError(body: String?): Boolean =
+            body != null && Regex(""""code"\s*:\s*0\b""").containsMatchIn(body) && body.contains("internal error", ignoreCase = true)
         private val USERNAME = Regex("^[A-Za-z0-9_-]{2,25}$")
 
         fun normalizeUsername(input: String): String? {

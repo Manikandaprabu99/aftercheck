@@ -1,6 +1,7 @@
 package app.aftercheck.data.sync
 
 import app.aftercheck.chess.OpeningBook
+import app.aftercheck.data.chesscom.ArchiveUnavailableException
 import app.aftercheck.data.chesscom.ChessComApi
 import app.aftercheck.data.chesscom.Fetch
 import app.aftercheck.data.chesscom.NotFoundException
@@ -29,6 +30,8 @@ data class SyncResult(
     val archivesRemaining: Int,
     val archivesEtag: String?,
     val skippedVariants: Int,
+    /** Months Chess.com failed to serve this time; they stay pending and are retried on the next sync. */
+    val unavailable: List<ArchiveEntity> = emptyList(),
 ) {
     val historyComplete: Boolean get() = archivesRemaining == 0
 }
@@ -40,6 +43,8 @@ data class SyncResult(
  * - A month is marked *complete* once it ended more than two days ago and has been fetched, so it is
  *   never downloaded again. Current months are re-checked with ETag / Last-Modified (a 304 is cheap).
  * - Games are de-duplicated by Chess.com's UUID, so interrupted runs simply resume.
+ * - If Chess.com can't serve one month (its "internal error" 404), that month is skipped for this run
+ *   without being marked complete, and the other months are still imported.
  */
 class SyncEngine(
     private val api: ChessComApi,
@@ -63,6 +68,7 @@ class SyncEngine(
         var fetched = 0
         var newGames = 0
         var skipped = 0
+        val unavailable = ArrayList<ArchiveEntity>()
         for (archive in pending.take(maxArchives)) {
             currentCoroutineContext().ensureActive()
             val now = clock()
@@ -71,6 +77,11 @@ class SyncEngine(
                 api.monthGames(archive.url, archive.etag, archive.lastModified)
             } catch (e: NotFoundException) {
                 Fetch.Fresh(emptyList(), null, null)
+            } catch (e: ArchiveUnavailableException) {
+                unavailable += archive
+                fetched++
+                pause(REQUEST_SPACING_MILLIS)
+                continue
             }
             when (result) {
                 Fetch.NotModified -> store.updateArchive(archive.copy(fetchedAt = now, complete = ended))
@@ -91,7 +102,7 @@ class SyncEngine(
             fetched++
             pause(REQUEST_SPACING_MILLIS)
         }
-        return SyncResult(newGames, fetched, (pending.size - fetched).coerceAtLeast(0), etag, skipped)
+        return SyncResult(newGames, fetched, (pending.size - fetched).coerceAtLeast(0), etag, skipped, unavailable)
     }
 
     companion object {

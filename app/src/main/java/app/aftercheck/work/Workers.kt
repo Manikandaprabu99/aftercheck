@@ -124,6 +124,10 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         return try {
             val result = c.syncEngine.sync(username, s.archivesEtag, MAX_ARCHIVES_PER_RUN)
             c.settings.recordSync(result.newGames, result.historyComplete, result.archivesEtag)
+            if (result.unavailable.isNotEmpty()) {
+                val months = result.unavailable.joinToString(", ") { monthName(it.year, it.month) }
+                c.settings.recordSyncError("Chess.com couldn't send your games for $months (a problem on their side). AfterCheck will try again automatically.")
+            }
             if (c.db.games().queuedCount() > 0) c.scheduler.enqueueAnalysis(append = false)
             if (!result.historyComplete) c.scheduler.continueSync(s.syncWifiOnly)
             Result.success(workDataOf("new" to result.newGames, "remaining" to result.archivesRemaining))
@@ -144,6 +148,9 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
 
     companion object {
         const val MAX_ARCHIVES_PER_RUN = 12
+
+        fun monthName(year: Int, month: Int): String =
+            java.text.DateFormatSymbols.getInstance().months.getOrElse(month - 1) { "$month" } + " $year"
     }
 }
 

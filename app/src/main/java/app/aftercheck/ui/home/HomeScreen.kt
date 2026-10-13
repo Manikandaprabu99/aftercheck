@@ -243,7 +243,7 @@ private fun SetupBanner(s: HomeState, onRetryDownload: () -> Unit, onSync: () ->
                 AppIcon(R.drawable.ic_error, null, tint = MaterialTheme.colorScheme.error)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Couldn't sync with Chess.com", style = MaterialTheme.typography.titleSmall)
+                    Text("Chess.com sync issue", style = MaterialTheme.typography.titleSmall)
                     Text(s.settings.lastSyncError, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 TextButton(onClick = onSync) { Text("Retry") }

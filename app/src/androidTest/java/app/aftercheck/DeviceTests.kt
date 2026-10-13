@@ -114,7 +114,7 @@ class DeviceEngineTest {
 class LiveChessComTest {
     @Test fun importsAPublicArchiveWithoutDuplicates() = runBlocking {
         assumeTrue(arg("liveChessCom") == "true")
-        val user = arg("liveUser") ?: "hikaru"
+        val user = arg("liveUser") ?: "erik"
         val db = Room.inMemoryDatabaseBuilder(app, AppDatabase::class.java).build()
         val api = ChessComApi(UrlConnectionHttpClient(AppContainer.USER_AGENT))
         assertEquals(user, api.profile(user).username.lowercase())
@@ -150,7 +150,7 @@ class AppTourTest {
 
     @Test fun onboardingSyncAnalysisAndReview() {
         assumeTrue(arg("liveChessCom") == "true")
-        val user = arg("liveUser") ?: "hikaru"
+        val user = arg("liveUser") ?: "erik"
         runBlocking {
             val c = app.container
             c.settings.disconnect()
