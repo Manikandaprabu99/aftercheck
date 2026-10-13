@@ -106,7 +106,7 @@ class ChessComApi(
             }
             when (response.code) {
                 200, 304 -> return response
-                404, 410 -> throw NotFoundException("Not found on Chess.com")
+                404, 410 -> throw NotFoundException("Not found on Chess.com (${url.substringAfter("/pub")})")
                 429 -> {
                     lastError = TransientApiException("Chess.com rate limit reached")
                     val retryAfter = response.header("retry-after")?.toLongOrNull()?.coerceIn(1, 120)
@@ -116,7 +116,7 @@ class ChessComApi(
                     lastError = TransientApiException("Chess.com is unavailable (HTTP ${response.code})")
                     if (attempt < maxAttempts) sleep(backoff)
                 }
-                else -> throw ApiException("Unexpected response from Chess.com (HTTP ${response.code})")
+                else -> throw ApiException("Unexpected response from Chess.com (HTTP ${response.code} for ${url.substringAfter("/pub")})")
             }
         }
         throw lastError as? TransientApiException
