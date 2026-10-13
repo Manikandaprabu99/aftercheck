@@ -16,7 +16,7 @@
 
 ## Not yet verified or complete
 
-- The JNI/CMake migration is being verified by a fresh GitHub Actions build. The previously successful APK was built with the old executable-based engine packaging and does not verify the current native architecture.
+- The JNI/CMake native engine and debug APK have built successfully in GitHub Actions, with JVM unit tests passing. Current main also verifies the cached NNUE network's SHA-256 filename prefix before reuse and tests that integrity check. CI confirms compilation and JVM tests only; it does not replace physical-device/emulator testing.
 - No physical-device/emulator validation has been performed in this environment. Native engine loading, first-time NNUE download, and a complete game review still need device testing.
 - The initial native build targets `arm64-v8a`; x86_64 emulator support is not included yet.
 - Move-classification thresholds and the accuracy estimate are AfterCheck approximations, not Chess.com's proprietary formulas.
