@@ -58,10 +58,10 @@ export LIVE_CHESSCOM=1                                 # optional: hit the real 
 ./gradlew :chess:test :app:testDebugUnitTest
 ```
 
-Live instrumented tests (real Chess.com account import, onboarding → automatic sync → background analysis → review):
+Live instrumented tests (real Chess.com account import, onboarding → automatic sync → background analysis → review). The tour uses the public account `erik` by default (`-Pandroid.testInstrumentationRunnerArguments.liveUser=<name>` to change it):
 
 ```bash
-./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.liveChessCom=true
+scripts/ci-device-tests.sh   # same as CI: streams results, saves logcat + screenshots in build/
 ```
 
 `scripts/testdata/server.py build/testdata 8765` serves the generated archives over HTTP like `api.chess.com/pub`. Debug builds can be pointed at it: `adb shell setprop debug.aftercheck.api http://10.0.2.2:8765/pub` and restart the app.

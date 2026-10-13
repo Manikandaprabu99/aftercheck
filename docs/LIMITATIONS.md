@@ -10,6 +10,8 @@ These are constraints of Chess.com, Android or the approach — not bugs. The ap
 - **Publication delay:** finished games appear in the archive after Chess.com publishes them — usually within minutes, occasionally longer. AfterCheck re-checks the current month on every sync using ETags, so the extra cost of checking is a 304 response.
 - **Variants** (Chess960, bughouse, crazyhouse, …) are skipped; the engine analyses standard chess only.
 - **Rate limits:** requests are made one at a time with backoff on HTTP 429/5xx, as the API asks.
+- **Months Chess.com can't serve:** occasionally the API answers a monthly archive with HTTP 404 and its own `{"code":0,"message":"An internal error has occurred…"}` document (observed on 2026-10-13 for the current month of several large accounts). AfterCheck treats that as temporary: the other months are still imported, the affected month stays pending and is retried on every sync, and Home shows which month is waiting.
+- **Conditional requests:** `If-None-Match` (ETag) is honoured with `304 Not Modified`; Chess.com's `Last-Modified` dates are not standard, so `If-Modified-Since` alone has no effect. AfterCheck relies on ETags.
 
 ## Background sync on Android
 

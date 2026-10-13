@@ -323,9 +323,17 @@ object Format {
         return if (h > 0) "%d:%02d:%02d".format(h, m, s) else if (millis < 20_000) "%d:%02d.%d".format(m, s, (millis % 1000) / 100) else "%d:%02d".format(m, s)
     }
 
+    /** Time spent on a move: "4.2s", "38s", "12 min", "3.5 h", "2.1 days" (daily games). */
     fun seconds(millis: Long?): String {
         millis ?: return ""
-        return if (millis < 10_000) "%.1fs".format(Locale.US, millis / 1000.0) else "${millis / 1000}s"
+        val s = millis / 1000.0
+        return when {
+            s < 10 -> "%.1fs".format(Locale.US, s)
+            s < 60 -> "${s.toInt()}s"
+            s < 3600 -> "${(s / 60).roundToInt()} min"
+            s < 86_400 -> "%.1f h".format(Locale.US, s / 3600)
+            else -> "%.1f days".format(Locale.US, s / 86_400)
+        }
     }
 
     fun percent(value: Double?): String = value?.let { "%.1f".format(Locale.US, it) } ?: "–"

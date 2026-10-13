@@ -124,5 +124,9 @@ class FormatTest {
         assertEquals("0:09.5", Format.clock(9_500))
         assertEquals("1:00:00", Format.clock(3_600_000))
         assertEquals("1.2 MB", Format.bytes(1_234_567))
+        assertEquals("4.2s", Format.seconds(4_200))
+        assertEquals("37 min", Format.seconds(2_218_000))
+        assertEquals("2.5 h", Format.seconds(9_000_000))
+        assertEquals("1.5 days", Format.seconds(129_600_000))
     }
 }

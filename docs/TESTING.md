@@ -17,6 +17,13 @@
 | Live Chess.com API (CI) | `LiveChessComTest` | `app/src/test`, `app/src/androidTest` |
 | Packaged engine executes on Android; game analysed and persisted on device | `DeviceEngineTest` | `app/src/androidTest` |
 | Room queries, queue order/charging filter, recovery, cascades; schema/migrations | `DatabaseTest`, `MigrationTest` | `app/src/androidTest` |
-| **App tour on an emulator**: onboarding with a real account → automatic import → network download → WorkManager analysis → review | `AppTourTest` | `app/src/androidTest` |
+| **App tour on an emulator**: onboarding with a real account → automatic import → network download → WorkManager analysis → review (UI Automator, screenshots) | `AppTourTest` | `app/src/androidTest` |
+
+Every instrumented test has a timeout that fails with the stuck thread's stack trace, so a hang can't stall CI. `scripts/ci-device-tests.sh` streams per-test results and saves logcat and screenshots for the workflow artifacts.
+
+### Results so far
+
+- JVM: 53 chess + 28 app tests pass locally and in GitHub Actions (the live Chess.com test runs only in CI).
+- Android 15 emulator (GitHub Actions): engine-on-device, Room, live Chess.com import and the full app tour pass.
 
 See [BUILD.md](BUILD.md) for the commands and environment variables.
