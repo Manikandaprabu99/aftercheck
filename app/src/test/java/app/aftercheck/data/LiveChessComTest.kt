@@ -19,12 +19,14 @@ class LiveChessComTest {
 
     /** Raw status codes, so a failure says exactly what the API answered. */
     private fun diagnose(): String = runBlocking {
-        candidates.joinToString("; ") { u ->
-            listOf("/player/$u", "/player/$u/games/archives").joinToString(", ") { path ->
+        val parts = mutableListOf<String>()
+        for (u in candidates) {
+            for (path in listOf("/player/$u", "/player/$u/games/archives")) {
                 val r = runCatching { http.get("${ChessComApi.DEFAULT_BASE_URL}$path", emptyMap()) }
-                "$path → ${r.getOrNull()?.code ?: r.exceptionOrNull()}"
+                parts += "$path → ${r.getOrNull()?.code ?: r.exceptionOrNull()}"
             }
         }
+        parts.joinToString("; ")
     }
 
     @Test fun profileArchivesAndConditionalRequests() = runBlocking {
