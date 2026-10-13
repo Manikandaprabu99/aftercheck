@@ -170,6 +170,20 @@ fun HomeScreen(
     }
 }
 
+/** The rotation only exists while a sync runs, so an idle Home screen draws no frames. */
+@Composable
+private fun SyncIcon(spinning: Boolean) {
+    val tint = MaterialTheme.colorScheme.onSurfaceVariant
+    if (spinning) {
+        val rotation by rememberInfiniteTransition(label = "sync").animateFloat(
+            0f, 360f, infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Restart), label = "spin",
+        )
+        AppIcon(R.drawable.ic_sync, "Syncing", Modifier.rotate(-rotation), tint = tint)
+    } else {
+        AppIcon(R.drawable.ic_sync, "Sync now", tint = tint)
+    }
+}
+
 private fun greeting(): String = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
     in 5..11 -> "Good morning"
     in 12..17 -> "Good afternoon"
@@ -199,11 +213,8 @@ private fun Header(state: HomeState?, onSync: () -> Unit, modifier: Modifier = M
             }
         }
         val spinning = state?.syncing == true
-        val rotation by rememberInfiniteTransition(label = "sync").animateFloat(
-            0f, 360f, infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Restart), label = "spin",
-        )
         IconButton(onClick = onSync, enabled = state != null && !spinning) {
-            AppIcon(R.drawable.ic_sync, "Sync now", Modifier.rotate(if (spinning) -rotation else 0f), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            SyncIcon(spinning)
         }
         state?.settings?.username?.let { Monogram(it, size = 40.dp) }
     }

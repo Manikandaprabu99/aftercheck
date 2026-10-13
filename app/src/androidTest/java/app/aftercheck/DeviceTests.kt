@@ -1,18 +1,14 @@
 package app.aftercheck
 
-import android.graphics.Bitmap
-import androidx.compose.ui.test.hasContentDescription
-import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTextInput
 import androidx.room.Room
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.By
+import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.UiObject2
+import androidx.test.uiautomator.Until
 import app.aftercheck.chess.GameLine
 import app.aftercheck.chess.Pgn
 import app.aftercheck.chess.ReplayResult
@@ -38,11 +34,16 @@ import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.Timeout
 import org.junit.runner.RunWith
 import java.io.File
-import java.io.FileOutputStream
+import java.util.concurrent.TimeUnit
 
 private val app get() = ApplicationProvider.getApplicationContext<AfterCheckApp>()
+
+/** Fails a hung test with the stuck thread's stack trace instead of blocking the whole run. */
+internal fun limit(minutes: Long): Timeout =
+    Timeout.builder().withTimeout(minutes, TimeUnit.MINUTES).withLookingForStuckThread(true).build()
 private fun arg(name: String) = InstrumentationRegistry.getArguments().getString(name)
 
 /** Downloads (once) and verifies the real network, exactly as the app does on first run. */
@@ -64,6 +65,8 @@ private val OPERA = """
 /** The packaged Stockfish executable runs on Android and produces correct results. */
 @RunWith(AndroidJUnit4::class)
 class DeviceEngineTest {
+    @get:Rule val timeout: Timeout = limit(10)
+
     @Before fun network() = ensureNetwork()
 
     @Test fun packagedEngineFindsMate() = runBlocking {
@@ -112,6 +115,8 @@ class DeviceEngineTest {
 /** Chess.com's real public API through the device network stack (CI only: -e liveChessCom true). */
 @RunWith(AndroidJUnit4::class)
 class LiveChessComTest {
+    @get:Rule val timeout: Timeout = limit(5)
+
     @Test fun importsAPublicArchiveWithoutDuplicates() = runBlocking {
         assumeTrue(arg("liveChessCom") == "true")
         val user = arg("liveUser") ?: "erik"
@@ -129,24 +134,26 @@ class LiveChessComTest {
 }
 
 /**
- * Drives the real app end to end: onboarding with a live Chess.com username, automatic import,
- * first-run network download, background analysis by WorkManager, then the review screens.
- * Screenshots go to the app's external files dir (pulled by CI).
+ * Drives the real app end to end like a user: onboarding with a live Chess.com username, automatic
+ * import, first-run network download, background analysis by WorkManager, then the review screens.
+ * Uses UI Automator (accessibility tree) so running animations never block it. Screenshots go to the
+ * app's external files dir (pulled by CI).
  */
 @RunWith(AndroidJUnit4::class)
 class AppTourTest {
-    @get:Rule val compose = createEmptyComposeRule()
+    @get:Rule val timeout: Timeout = limit(25)
+
+    private val device: UiDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
 
     private fun shot(name: String) {
-        compose.waitForIdle()
-        Thread.sleep(400)
-        val bmp: Bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot() ?: return
+        Thread.sleep(600)
         val dir = File(app.getExternalFilesDir(null), "screens").apply { mkdirs() }
-        FileOutputStream(File(dir, "$name.png")).use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        device.takeScreenshot(File(dir, "$name.png"))
     }
 
-    private fun waitForText(text: String, timeoutMillis: Long) =
-        compose.waitUntil(timeoutMillis) { compose.onAllNodesWithText(text, substring = true).fetchSemanticsNodes().isNotEmpty() }
+    private fun find(text: String, timeoutMillis: Long): UiObject2 =
+        device.wait(Until.findObject(By.textContains(text)), timeoutMillis)
+            ?: throw AssertionError("\"$text\" did not appear within ${timeoutMillis / 1000}s")
 
     @Test fun onboardingSyncAnalysisAndReview() {
         assumeTrue(arg("liveChessCom") == "true")
@@ -159,29 +166,33 @@ class AppTourTest {
             c.settings.setAnalysisMode(AnalysisMode.FAST)
         }
         ActivityScenario.launch(MainActivity::class.java).use {
-            waitForText("Connect Chess.com", 20_000)
+            find("Connect Chess.com", 30_000)
             shot("01-welcome")
-            compose.onNodeWithText("Connect Chess.com").performClick()
-            compose.onNodeWithText("Chess.com username").performTextInput(user)
+            find("Connect Chess.com", 5_000).click()
+            val field = device.wait(Until.findObject(By.clazz("android.widget.EditText")), 10_000)
+                ?: throw AssertionError("username field not found")
+            field.text = user
             shot("02-connect")
-            compose.onNodeWithText("Find my account").performClick()
-            waitForText("Import my games", 30_000)
+            find("Find my account", 5_000).click()
+            find("Import my games", 60_000)
             shot("03-profile")
-            compose.onNodeWithText("Import my games").performClick()
+            find("Import my games", 5_000).click()
 
             // Automatic import: the newest games appear without any manual step.
-            waitForText("Latest game", 180_000)
+            find("Latest game", 240_000)
             shot("04-home-importing")
             // First-run network download + background analysis of the newest game.
-            waitForText("Open review", 900_000)
+            find("Open review", 900_000)
             shot("05-home-reviewed")
-            compose.onNodeWithText("Open review").performClick()
-            waitForText("Summary", 30_000)
+            find("Open review", 5_000).click()
+            find("Summary", 60_000)
             shot("06-review-start")
-            repeat(12) { compose.onNode(hasContentDescription("Next move")).performClick() }
+            repeat(12) {
+                (device.wait(Until.findObject(By.desc("Next move")), 5_000) ?: throw AssertionError("no Next move button")).click()
+            }
             shot("07-review-move")
-            compose.onNode(hasText("Summary")).performClick()
-            waitForText("Game summary", 10_000)
+            find("Summary", 5_000).click()
+            find("Game summary", 15_000)
             shot("08-summary")
         }
         val ready = runBlocking { app.container.db.games().counts().first().ready }

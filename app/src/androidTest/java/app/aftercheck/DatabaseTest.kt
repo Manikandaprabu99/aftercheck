@@ -14,11 +14,14 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class DatabaseTest {
+    @get:Rule val timeout: org.junit.rules.Timeout = limit(3)
+
     private lateinit var db: AppDatabase
 
     @Before fun open() {

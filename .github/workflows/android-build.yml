@@ -191,9 +191,7 @@ jobs:
           ram-size: 4096M
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: |
-            ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.liveChessCom=true
-            mkdir -p build/screens/device && adb pull /sdcard/Android/data/app.aftercheck.debug/files/screens build/screens/device || true
+          script: scripts/ci-device-tests.sh
 
       - uses: actions/upload-artifact@v7
         if: always()
@@ -201,6 +199,7 @@ jobs:
           name: device-test-reports
           path: |
             build/screens/device/
+            build/device/
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/
           retention-days: 14
