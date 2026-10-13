@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Chess piece "cburnett" set by Colin M.L. Burnett, licensed GPLv2+.
+Source: https://github.com/lichess-org/lila/blob/master/public/piece/cburnett/bP.svg
+Converted from SVG to VectorDrawable. See third_party/cburnett/README.md.
+-->
+<vector
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="45dp"
+    android:height="45dp"
+    android:viewportWidth="45"
+    android:viewportHeight="45">
+    <path
+        android:pathData="M22.5 9 a4 4 0 0 0 -3.22 6.38 a6.48 6.48 0 0 0 -0.87 10.65 c-3 1.06 -7.41 5.55 -7.41 13.47 h23 c0 -7.92 -4.41 -12.41 -7.41 -13.47 a6.46 6.46 0 0 0 -0.87 -10.65 A4.01 4.01 0 0 0 22.5 9 z"
+        android:fillColor="#FF000000"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"/>
+</vector>

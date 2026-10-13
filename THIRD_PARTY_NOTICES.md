@@ -1,23 +1,18 @@
 # Third-party notices
 
-## Stockfish 19
+AfterCheck is licensed under the GNU General Public License v3.0 (see `LICENSE`). It includes or downloads:
 
-AfterCheck integrates the official Stockfish engine source at the pinned upstream tag `sf_19` as a native JNI shared library. The engine source is fetched at build time from:
+| Component | Licence | Source | How it is used |
+|---|---|---|---|
+| Stockfish 16 | GPL-3.0 | <https://github.com/official-stockfish/Stockfish> tag `sf_16` (tarball SHA-256 pinned in `scripts/build-stockfish.sh`) | Compiled from unmodified source with `-DNNUE_EMBEDDING_OFF`; shipped as executables in the APK. Corresponding source: the tag above plus `scripts/build-stockfish.sh`. |
+| Stockfish NNUE network `nn-5af11540bbfe.nnue` | GPL-3.0 (distributed by the Stockfish project) | <https://tests.stockfishchess.org/api/nn/nn-5af11540bbfe.nnue> | Downloaded by the app on first use; verified by SHA-256 prefix. Not bundled. |
+| cburnett chess pieces | GPL-2.0-or-later | <https://github.com/lichess-org/lila/tree/master/public/piece/cburnett> | Converted to Android vector drawables (`third_party/cburnett/`). |
+| Opening names (chess-openings) | CC0-1.0 | <https://github.com/lichess-org/chess-openings> | `app/src/main/assets/openings.tsv` (`third_party/chess-openings/`). |
+| Inter typeface | SIL OFL 1.1 | <https://github.com/google/fonts/tree/main/ofl/inter> | Static weights, subset (`third_party/inter/`). |
+| Material Symbols (Rounded) | Apache-2.0 | <https://github.com/google/material-design-icons> | A subset of icons as vector drawables (`third_party/material-symbols/`). |
+| AndroidX, Jetpack Compose, Room, WorkManager, Paging, DataStore | Apache-2.0 | <https://developer.android.com/jetpack> | Libraries. |
+| Kotlin standard library, kotlinx.coroutines | Apache-2.0 | <https://github.com/JetBrains/kotlin> | Libraries. |
 
-- Source: https://github.com/official-stockfish/Stockfish/tree/sf_19
-- License: [third_party/stockfish/COPYING.txt](third_party/stockfish/COPYING.txt), GNU GPL version 3
-- JNI bridge: [android/app/src/main/cpp/stockfish_jni.cpp](android/app/src/main/cpp/stockfish_jni.cpp)
-- Native build: [android/app/src/main/cpp/CMakeLists.txt](android/app/src/main/cpp/CMakeLists.txt)
-- Build helper: [scripts/build-stockfish-android.sh](scripts/build-stockfish-android.sh)
+Test-only tools (not shipped): JUnit (EPL-1.0), Robolectric (MIT), python-chess (GPL-3.0, used to generate test games).
 
-The official evaluation network `nn-1a298aa575a0.nnue` is fetched on first analysis from an official Stockfish network endpoint, SHA-256-prefix checked, and stored locally. It is not bundled in the APK.
-
-Stockfish and the JNI bridge are GPLv3; see the repository [LICENSE](LICENSE). The upstream engine source itself is not modified, but it is built together with the AfterCheck JNI interface.
-
-## Chesslib
-
-The chess rules and SAN/FEN helper uses [bhlangonijr/chesslib](https://github.com/bhlangonijr/chesslib), an Apache-2.0 licensed Java library distributed through JitPack. The license text is in [third_party/chesslib/LICENSE](third_party/chesslib/LICENSE).
-
-## AndroidX, Jetpack Compose, Room, WorkManager and Kotlin
-
-These dependencies retain their respective licenses; consult their published metadata and source repositories. This file is not a replacement for the upstream license texts.
+"Chess.com" is a trademark of Chess.com, LLC. AfterCheck is not affiliated with or endorsed by Chess.com.

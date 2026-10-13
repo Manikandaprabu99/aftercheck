@@ -1,0 +1,950 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "da1c92fe62a2a239939e02a11043590d",
+    "entities": [
+      {
+        "tableName": "games",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `url` TEXT, `white` TEXT NOT NULL, `black` TEXT NOT NULL, `whiteRating` INTEGER, `blackRating` INTEGER, `userColor` TEXT, `opponent` TEXT NOT NULL, `opponentLower` TEXT NOT NULL, `opponentRating` INTEGER, `userRating` INTEGER, `result` TEXT NOT NULL, `userResult` TEXT NOT NULL, `termination` TEXT, `endTime` INTEGER NOT NULL, `timeClass` TEXT NOT NULL, `timeControl` TEXT NOT NULL, `rated` INTEGER NOT NULL, `eco` TEXT, `openingName` TEXT, `openingFamily` TEXT, `openingLower` TEXT, `plies` INTEGER NOT NULL, `pgn` TEXT NOT NULL, `status` TEXT NOT NULL, `statusMessage` TEXT, `priority` INTEGER NOT NULL, `attempts` INTEGER NOT NULL, `progress` INTEGER NOT NULL, `analysisKey` TEXT, `whiteAccuracy` REAL, `blackAccuracy` REAL, `userAccuracy` REAL, `opponentAccuracy` REAL, `userBest` INTEGER, `userInaccuracies` INTEGER, `userMistakes` INTEGER, `userBlunders` INTEGER, `userMisses` INTEGER, `importedAt` INTEGER NOT NULL, `analyzedAt` INTEGER, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "url",
+            "columnName": "url",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "white",
+            "columnName": "white",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "black",
+            "columnName": "black",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "whiteRating",
+            "columnName": "whiteRating",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "blackRating",
+            "columnName": "blackRating",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "userColor",
+            "columnName": "userColor",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "opponent",
+            "columnName": "opponent",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "opponentLower",
+            "columnName": "opponentLower",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "opponentRating",
+            "columnName": "opponentRating",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "userRating",
+            "columnName": "userRating",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "result",
+            "columnName": "result",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userResult",
+            "columnName": "userResult",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "termination",
+            "columnName": "termination",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "endTime",
+            "columnName": "endTime",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timeClass",
+            "columnName": "timeClass",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timeControl",
+            "columnName": "timeControl",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rated",
+            "columnName": "rated",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eco",
+            "columnName": "eco",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "openingName",
+            "columnName": "openingName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "openingFamily",
+            "columnName": "openingFamily",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "openingLower",
+            "columnName": "openingLower",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "plies",
+            "columnName": "plies",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pgn",
+            "columnName": "pgn",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "statusMessage",
+            "columnName": "statusMessage",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "priority",
+            "columnName": "priority",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attempts",
+            "columnName": "attempts",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "progress",
+            "columnName": "progress",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "analysisKey",
+            "columnName": "analysisKey",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "whiteAccuracy",
+            "columnName": "whiteAccuracy",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "blackAccuracy",
+            "columnName": "blackAccuracy",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "userAccuracy",
+            "columnName": "userAccuracy",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "opponentAccuracy",
+            "columnName": "opponentAccuracy",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "userBest",
+            "columnName": "userBest",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "userInaccuracies",
+            "columnName": "userInaccuracies",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "userMistakes",
+            "columnName": "userMistakes",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "userBlunders",
+            "columnName": "userBlunders",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "userMisses",
+            "columnName": "userMisses",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "importedAt",
+            "columnName": "importedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "analyzedAt",
+            "columnName": "analyzedAt",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_games_endTime",
+            "unique": false,
+            "columnNames": [
+              "endTime"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_games_endTime` ON `${TABLE_NAME}` (`endTime`)"
+          },
+          {
+            "name": "index_games_status_priority_endTime",
+            "unique": false,
+            "columnNames": [
+              "status",
+              "priority",
+              "endTime"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_games_status_priority_endTime` ON `${TABLE_NAME}` (`status`, `priority`, `endTime`)"
+          },
+          {
+            "name": "index_games_userResult",
+            "unique": false,
+            "columnNames": [
+              "userResult"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_games_userResult` ON `${TABLE_NAME}` (`userResult`)"
+          },
+          {
+            "name": "index_games_timeClass",
+            "unique": false,
+            "columnNames": [
+              "timeClass"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_games_timeClass` ON `${TABLE_NAME}` (`timeClass`)"
+          },
+          {
+            "name": "index_games_opponentLower",
+            "unique": false,
+            "columnNames": [
+              "opponentLower"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_games_opponentLower` ON `${TABLE_NAME}` (`opponentLower`)"
+          }
+        ]
+      },
+      {
+        "tableName": "moves",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`gameId` TEXT NOT NULL, `ply` INTEGER NOT NULL, `san` TEXT NOT NULL, `uci` TEXT NOT NULL, `isUser` INTEGER NOT NULL, `classification` TEXT NOT NULL, `scoreBefore` TEXT NOT NULL, `scoreAfter` TEXT NOT NULL, `pointsLost` REAL NOT NULL, `accuracy` REAL NOT NULL, `bestUci` TEXT, `bestSan` TEXT, `bestLine` TEXT NOT NULL, `replyLine` TEXT NOT NULL, `alternatives` TEXT NOT NULL, `explanation` TEXT NOT NULL, `themes` TEXT NOT NULL, `clockMillis` INTEGER, `timeSpentMillis` INTEGER, PRIMARY KEY(`gameId`, `ply`), FOREIGN KEY(`gameId`) REFERENCES `games`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "gameId",
+            "columnName": "gameId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ply",
+            "columnName": "ply",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "san",
+            "columnName": "san",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "uci",
+            "columnName": "uci",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isUser",
+            "columnName": "isUser",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "classification",
+            "columnName": "classification",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scoreBefore",
+            "columnName": "scoreBefore",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scoreAfter",
+            "columnName": "scoreAfter",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pointsLost",
+            "columnName": "pointsLost",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accuracy",
+            "columnName": "accuracy",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bestUci",
+            "columnName": "bestUci",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "bestSan",
+            "columnName": "bestSan",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "bestLine",
+            "columnName": "bestLine",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "replyLine",
+            "columnName": "replyLine",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "alternatives",
+            "columnName": "alternatives",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "explanation",
+            "columnName": "explanation",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "themes",
+            "columnName": "themes",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "clockMillis",
+            "columnName": "clockMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "timeSpentMillis",
+            "columnName": "timeSpentMillis",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "gameId",
+            "ply"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_moves_isUser_classification",
+            "unique": false,
+            "columnNames": [
+              "isUser",
+              "classification"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_moves_isUser_classification` ON `${TABLE_NAME}` (`isUser`, `classification`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "games",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "gameId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "reviews",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`gameId` TEXT NOT NULL, `whiteAccuracy` REAL, `blackAccuracy` REAL, `whiteCounts` TEXT NOT NULL, `blackCounts` TEXT NOT NULL, `eco` TEXT, `openingName` TEXT, `bookPlies` INTEGER NOT NULL, `winChances` TEXT NOT NULL, `finalScore` TEXT NOT NULL, `biggestSwingPly` INTEGER, `strongestMovePly` INTEGER, `turningPoints` TEXT NOT NULL, `recommendations` TEXT NOT NULL, `engineName` TEXT NOT NULL, `analysisKey` TEXT NOT NULL, `depth` INTEGER NOT NULL, `durationMillis` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`gameId`), FOREIGN KEY(`gameId`) REFERENCES `games`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "gameId",
+            "columnName": "gameId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "whiteAccuracy",
+            "columnName": "whiteAccuracy",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "blackAccuracy",
+            "columnName": "blackAccuracy",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "whiteCounts",
+            "columnName": "whiteCounts",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "blackCounts",
+            "columnName": "blackCounts",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eco",
+            "columnName": "eco",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "openingName",
+            "columnName": "openingName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "bookPlies",
+            "columnName": "bookPlies",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "winChances",
+            "columnName": "winChances",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "finalScore",
+            "columnName": "finalScore",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "biggestSwingPly",
+            "columnName": "biggestSwingPly",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "strongestMovePly",
+            "columnName": "strongestMovePly",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "turningPoints",
+            "columnName": "turningPoints",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recommendations",
+            "columnName": "recommendations",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "engineName",
+            "columnName": "engineName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "analysisKey",
+            "columnName": "analysisKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "depth",
+            "columnName": "depth",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "durationMillis",
+            "columnName": "durationMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "gameId"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "games",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "gameId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "archives",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`url` TEXT NOT NULL, `username` TEXT NOT NULL, `year` INTEGER NOT NULL, `month` INTEGER NOT NULL, `etag` TEXT, `lastModified` TEXT, `fetchedAt` INTEGER, `complete` INTEGER NOT NULL, `gameCount` INTEGER NOT NULL, PRIMARY KEY(`url`))",
+        "fields": [
+          {
+            "fieldPath": "url",
+            "columnName": "url",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "username",
+            "columnName": "username",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "year",
+            "columnName": "year",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "month",
+            "columnName": "month",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "etag",
+            "columnName": "etag",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lastModified",
+            "columnName": "lastModified",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fetchedAt",
+            "columnName": "fetchedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "complete",
+            "columnName": "complete",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gameCount",
+            "columnName": "gameCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "url"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_archives_username",
+            "unique": false,
+            "columnNames": [
+              "username"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_archives_username` ON `${TABLE_NAME}` (`username`)"
+          }
+        ]
+      },
+      {
+        "tableName": "eval_cache",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`key` TEXT NOT NULL, `encoded` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`key`))",
+        "fields": [
+          {
+            "fieldPath": "key",
+            "columnName": "key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "encoded",
+            "columnName": "encoded",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "key"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_eval_cache_createdAt",
+            "unique": false,
+            "columnNames": [
+              "createdAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_eval_cache_createdAt` ON `${TABLE_NAME}` (`createdAt`)"
+          }
+        ]
+      },
+      {
+        "tableName": "practice",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `gameId` TEXT NOT NULL, `ply` INTEGER NOT NULL, `fen` TEXT NOT NULL, `sideToMove` TEXT NOT NULL, `playedUci` TEXT NOT NULL, `playedSan` TEXT NOT NULL, `solutionUci` TEXT NOT NULL, `solutionSan` TEXT NOT NULL, `acceptedUci` TEXT NOT NULL, `solutionLine` TEXT NOT NULL, `classification` TEXT NOT NULL, `themes` TEXT NOT NULL, `explanation` TEXT NOT NULL, `scoreBefore` TEXT NOT NULL, `scoreAfter` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `box` INTEGER NOT NULL, `dueAt` INTEGER NOT NULL, `attempts` INTEGER NOT NULL, `correct` INTEGER NOT NULL, `lastAttemptAt` INTEGER, `lastCorrect` INTEGER, `starred` INTEGER NOT NULL, FOREIGN KEY(`gameId`) REFERENCES `games`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gameId",
+            "columnName": "gameId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ply",
+            "columnName": "ply",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fen",
+            "columnName": "fen",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sideToMove",
+            "columnName": "sideToMove",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "playedUci",
+            "columnName": "playedUci",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "playedSan",
+            "columnName": "playedSan",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "solutionUci",
+            "columnName": "solutionUci",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "solutionSan",
+            "columnName": "solutionSan",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "acceptedUci",
+            "columnName": "acceptedUci",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "solutionLine",
+            "columnName": "solutionLine",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "classification",
+            "columnName": "classification",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "themes",
+            "columnName": "themes",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "explanation",
+            "columnName": "explanation",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scoreBefore",
+            "columnName": "scoreBefore",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scoreAfter",
+            "columnName": "scoreAfter",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "box",
+            "columnName": "box",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dueAt",
+            "columnName": "dueAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attempts",
+            "columnName": "attempts",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "correct",
+            "columnName": "correct",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastAttemptAt",
+            "columnName": "lastAttemptAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastCorrect",
+            "columnName": "lastCorrect",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "starred",
+            "columnName": "starred",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_practice_gameId_ply",
+            "unique": true,
+            "columnNames": [
+              "gameId",
+              "ply"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_practice_gameId_ply` ON `${TABLE_NAME}` (`gameId`, `ply`)"
+          },
+          {
+            "name": "index_practice_dueAt",
+            "unique": false,
+            "columnNames": [
+              "dueAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_practice_dueAt` ON `${TABLE_NAME}` (`dueAt`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "games",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "gameId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "practice_attempts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `positionId` INTEGER NOT NULL, `at` INTEGER NOT NULL, `correct` INTEGER NOT NULL, FOREIGN KEY(`positionId`) REFERENCES `practice`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "positionId",
+            "columnName": "positionId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "at",
+            "columnName": "at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "correct",
+            "columnName": "correct",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_practice_attempts_positionId",
+            "unique": false,
+            "columnNames": [
+              "positionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_practice_attempts_positionId` ON `${TABLE_NAME}` (`positionId`)"
+          },
+          {
+            "name": "index_practice_attempts_at",
+            "unique": false,
+            "columnNames": [
+              "at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_practice_attempts_at` ON `${TABLE_NAME}` (`at`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "practice",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "positionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'da1c92fe62a2a239939e02a11043590d')"
+    ]
+  }
+}

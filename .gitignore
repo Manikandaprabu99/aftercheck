@@ -1,13 +1,28 @@
+# Gradle / Android build output
 .gradle/
+.kotlin/
+build/
 **/build/
 local.properties
-.idea/
-*.iml
-.DS_Store
+captures/
 .externalNativeBuild/
 .cxx/
-captures/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Generated Stockfish executables (built by scripts/build-stockfish.sh)
+app/src/main/jniLibs/
+
+# Signing material must never be committed
 keystore.properties
 *.jks
 *.keystore
-android/app/src/main/cpp/stockfish/
+*.keystore.b64
+signing/
+
+# Locally built APKs
+dist/

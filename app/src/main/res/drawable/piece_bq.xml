@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Chess piece "cburnett" set by Colin M.L. Burnett, licensed GPLv2+.
+Source: https://github.com/lichess-org/lila/blob/master/public/piece/cburnett/bQ.svg
+Converted from SVG to VectorDrawable. See third_party/cburnett/README.md.
+-->
+<vector
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="45dp"
+    android:height="45dp"
+    android:viewportWidth="45"
+    android:viewportHeight="45">
+    <path
+        android:pathData="M3.25 12 A2.75 2.75 0 1 0 8.75 12 A2.75 2.75 0 1 0 3.25 12 Z"
+        android:fillColor="#FF000000"
+        android:fillType="evenOdd"/>
+    <path
+        android:pathData="M11.25 9 A2.75 2.75 0 1 0 16.75 9 A2.75 2.75 0 1 0 11.25 9 Z"
+        android:fillColor="#FF000000"
+        android:fillType="evenOdd"/>
+    <path
+        android:pathData="M19.75 8 A2.75 2.75 0 1 0 25.25 8 A2.75 2.75 0 1 0 19.75 8 Z"
+        android:fillColor="#FF000000"
+        android:fillType="evenOdd"/>
+    <path
+        android:pathData="M28.25 9 A2.75 2.75 0 1 0 33.75 9 A2.75 2.75 0 1 0 28.25 9 Z"
+        android:fillColor="#FF000000"
+        android:fillType="evenOdd"/>
+    <path
+        android:pathData="M36.25 12 A2.75 2.75 0 1 0 41.75 12 A2.75 2.75 0 1 0 36.25 12 Z"
+        android:fillColor="#FF000000"
+        android:fillType="evenOdd"/>
+    <path
+        android:pathData="M9 26 c8.5 -1.5 21 -1.5 27 0 l2.5 -12.5 L31 25 l-0.3 -14.1 l-5.2 13.6 l-3 -14.5 l-3 14.5 l-5.2 -13.6 L14 25 L6.5 13.5 z"
+        android:fillColor="#FF000000"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.5"
+        android:strokeLineJoin="round"
+        android:fillType="evenOdd"/>
+    <path
+        android:pathData="M9 26 c0 2 1.5 2 2.5 4 c1 1.5 1 1 0.5 3.5 c-1.5 1 -1.5 2.5 -1.5 2.5 c-1.5 1.5 0.5 2.5 0.5 2.5 c6.5 1 16.5 1 23 0 c0 0 1.5 -1 0 -2.5 c0 0 0.5 -1.5 -1 -2.5 c-0.5 -2.5 -0.5 -2 0.5 -3.5 c1 -2 2.5 -2 2.5 -4 c-8.5 -1.5 -18.5 -1.5 -27 0 z"
+        android:fillColor="#FF000000"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.5"
+        android:strokeLineJoin="round"
+        android:fillType="evenOdd"/>
+    <path
+        android:pathData="M11 38.5 a35 35 1 0 0 23 0"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.5"
+        android:strokeLineJoin="round"/>
+    <path
+        android:pathData="M11 29 a35 35 1 0 1 23 0 m-21.5 2.5 h20 m-21 3 a35 35 1 0 0 22 0 m-23 3 a35 35 1 0 0 24 0"
+        android:strokeColor="#FFECECEC"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"/>
+</vector>

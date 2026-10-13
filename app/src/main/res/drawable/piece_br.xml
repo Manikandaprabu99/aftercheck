@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Chess piece "cburnett" set by Colin M.L. Burnett, licensed GPLv2+.
+Source: https://github.com/lichess-org/lila/blob/master/public/piece/cburnett/bR.svg
+Converted from SVG to VectorDrawable. See third_party/cburnett/README.md.
+-->
+<vector
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="45dp"
+    android:height="45dp"
+    android:viewportWidth="45"
+    android:viewportHeight="45">
+    <path
+        android:pathData="M9 39 h27 v-3 H9 z m3.5 -7 l1.5 -2.5 h17 l1.5 2.5 z m-0.5 4 v-4 h21 v4 z"
+        android:fillColor="#FF000000"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.5"
+        android:strokeLineJoin="round"
+        android:fillType="evenOdd"/>
+    <path
+        android:pathData="M14 29.5 v-13 h17 v13 z"
+        android:fillColor="#FF000000"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.5"
+        android:fillType="evenOdd"/>
+    <path
+        android:pathData="M14 16.5 L11 14 h23 l-3 2.5 z M11 14 V9 h4 v2 h5 V9 h5 v2 h5 V9 h4 v5 z"
+        android:fillColor="#FF000000"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.5"
+        android:strokeLineJoin="round"
+        android:fillType="evenOdd"/>
+    <path
+        android:pathData="M12 35.5 h21 m-20 -4 h19 m-18 -2 h17 m-17 -13 h17 M11 14 h23"
+        android:strokeColor="#FFECECEC"
+        android:strokeWidth="1"
+        android:strokeLineCap="round"/>
+</vector>

@@ -7,81 +7,257 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      device_tests:
+        description: Run the emulator test suite
+        type: boolean
+        default: true
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: aftercheck-build-v5-${{ github.ref }}
-  cancel-in-progress: false
+  group: android-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  NDK_VERSION: "28.2.13676358"
+  NNUE: nn-5af11540bbfe.nnue
 
 jobs:
   build:
+    name: Test and build
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      signed: ${{ steps.apks.outputs.signed }}
+      version: ${{ steps.apks.outputs.version }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v6
+
+      - uses: android-actions/setup-android@v4
         with:
           packages: platform-tools
 
-      - name: Install Android SDK, NDK and CMake
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
+      - name: Install SDK platform, build tools and NDK
+        run: sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "ndk;${NDK_VERSION}" > /dev/null
 
-      - name: Fetch pinned Stockfish source for JNI build
-        env:
-          STOCKFISH_TAG: sf_19
-        run: |
-          set -euxo pipefail
-          git clone --depth 1 --branch "$STOCKFISH_TAG" https://github.com/official-stockfish/Stockfish.git "$RUNNER_TEMP/stockfish"
-          mkdir -p android/app/src/main/cpp/stockfish
-          cp -a "$RUNNER_TEMP/stockfish/src/." android/app/src/main/cpp/stockfish/
-          test -f android/app/src/main/cpp/stockfish/uci.cpp
-          test -f android/app/src/main/cpp/stockfish/evaluate.h
-
-      - name: Install Gradle 8.9
-        run: |
-          curl --fail --location --retry 3 https://services.gradle.org/distributions/gradle-8.9-bin.zip -o "$RUNNER_TEMP/gradle.zip"
-          unzip -q "$RUNNER_TEMP/gradle.zip" -d "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/gradle-8.9/bin" >> "$GITHUB_PATH"
-
-      - name: Run unit tests and build debug APK
-        working-directory: android
-        run: gradle testDebugUnitTest assembleDebug
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+      - name: Restore Stockfish builds
+        id: sf-cache
+        uses: actions/cache@v6
         with:
-          name: aftercheck-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          path: |
+            app/src/main/jniLibs
+            build/stockfish/host
+          key: stockfish-${{ hashFiles('scripts/build-stockfish.sh') }}-ndk${{ env.NDK_VERSION }}
+
+      - name: Build Stockfish (Android executables and host build for tests)
+        if: steps.sf-cache.outputs.cache-hit != 'true'
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/$NDK_VERSION"
+          scripts/build-stockfish.sh
+          scripts/build-stockfish.sh --host
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Generate test archives with real Stockfish games
+        run: |
+          pip install --quiet chess==1.11.2
+          GAMES=24 python scripts/testdata/generate.py build/stockfish/host/stockfish "build/stockfish/host/$NNUE" build/testdata
+
+      - name: Unit, engine, end-to-end and live Chess.com tests
+        env:
+          AFTERCHECK_STOCKFISH: ${{ github.workspace }}/build/stockfish/host/stockfish
+          AFTERCHECK_NNUE: ${{ github.workspace }}/build/stockfish/host/nn-5af11540bbfe.nnue
+          AFTERCHECK_MOCK_DATA: ${{ github.workspace }}/build/testdata
+          AFTERCHECK_SCREENSHOTS: ${{ github.workspace }}/build/screens/jvm
+          LIVE_CHESSCOM: "1"
+        run: ./gradlew :chess:test :app:testDebugUnitTest --stacktrace
+
+      - name: Lint
+        run: ./gradlew :app:lintDebug
+
+      - name: Prepare release signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.AFTERCHECK_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "AFTERCHECK_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build APKs
+        env:
+          AFTERCHECK_KEYSTORE_PASSWORD: ${{ secrets.AFTERCHECK_KEYSTORE_PASSWORD }}
+          AFTERCHECK_KEY_ALIAS: ${{ secrets.AFTERCHECK_KEY_ALIAS }}
+          AFTERCHECK_KEY_PASSWORD: ${{ secrets.AFTERCHECK_KEY_PASSWORD }}
+        run: ./gradlew :app:assembleRelease :app:assembleDebug
+
+      - name: Verify and name APKs
+        id: apks
+        run: |
+          set -euo pipefail
+          BT="$ANDROID_SDK_ROOT/build-tools/37.0.0"
+          VERSION="${GITHUB_REF_NAME#v}"
+          [[ "$GITHUB_REF" == refs/tags/v* ]] || VERSION="$(git describe --tags --always)-dev"
+          mkdir -p dist
+          if [ -f app/build/outputs/apk/release/app-release.apk ]; then
+            "$BT/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk | tee dist/signature.txt
+            cp app/build/outputs/apk/release/app-release.apk "dist/AfterCheck-${VERSION}.apk"
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Release signing secrets are not configured; publishing the debug-signed build."
+            cp app/build/outputs/apk/debug/app-debug.apk "dist/AfterCheck-${VERSION}-debug.apk"
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          fi
+          (cd dist && for f in *.apk; do sha256sum "$f" > "$f.sha256"; done)
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          ls -l dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: aftercheck-apk
+          path: dist/
           if-no-files-found: error
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: stockfish-jnilibs
+          path: app/src/main/jniLibs/
+          retention-days: 3
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: jvm-test-reports
+          path: |
+            build/screens/jvm/
+            chess/build/reports/tests/
+            app/build/reports/tests/
+            app/build/reports/lint-results-debug.html
           retention-days: 14
 
-      - name: Prepare checksum and release APK name
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk "AfterCheck-${GITHUB_REF_NAME}-debug.apk"
-          sha256sum "AfterCheck-${GITHUB_REF_NAME}-debug.apk" > "AfterCheck-${GITHUB_REF_NAME}-debug.apk.sha256"
+  device-test:
+    name: Emulator tests
+    needs: build
+    if: github.event_name != 'workflow_dispatch' || inputs.device_tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7
 
-      - name: Publish debug APK release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+      - uses: actions/setup-java@v6
         with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
+
+      - name: Install SDK platform and build tools
+        run: sdkmanager "platforms;android-37.0" "build-tools;37.0.0" > /dev/null
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: stockfish-jnilibs
+          path: app/src/main/jniLibs/
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Instrumented tests on an Android 15 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7
+          ram-size: 4096M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.liveChessCom=true
+            mkdir -p build/screens/device && adb pull /sdcard/Android/data/app.aftercheck.debug/files/screens build/screens/device || true
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: device-test-reports
+          path: |
+            build/screens/device/
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+          retention-days: 14
+
+  release:
+    name: Publish GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, device-test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: aftercheck-apk
+          path: dist/
+
+      - name: Write release notes
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          SIGNED: ${{ needs.build.outputs.signed }}
+        run: |
+          APK=$(ls dist/*.apk | head -1)
+          SUM=$(cut -d' ' -f1 "$APK.sha256")
+          {
+            echo "## AfterCheck ${VERSION}"
+            echo
+            echo "Free, unlimited, on-device chess game reviews for your Chess.com games, powered by Stockfish 16."
+            echo
+            echo "**Download:** \`$(basename "$APK")\` ($(du -h "$APK" | cut -f1))"
+            echo "**SHA-256:** \`${SUM}\`"
+            echo "**Requires:** Android 8.0 (API 26) or newer, 64-bit ARM (almost all phones) or x86_64."
+            if [ "$SIGNED" != "true" ]; then
+              echo
+              echo "> This build is debug-signed because release-signing secrets are not configured yet. It installs as a separate app (\`app.aftercheck.debug\`)."
+            fi
+            echo
+            echo "### Install"
+            echo "1. Download the APK on your phone."
+            echo "2. Open it and allow installing from this source when Android asks."
+            echo "3. Verify (optional): \`sha256sum $(basename "$APK")\` must print the checksum above."
+            echo "4. Open AfterCheck, enter your Chess.com username and let it import your games."
+            echo
+            echo "On first use the app downloads the official Stockfish NNUE network (40 MB) once."
+            echo
+            echo "### Notes"
+            echo "- Reads only Chess.com's public game archive by username; never asks for your password."
+            echo "- Games and reviews stay on the device."
+            echo "- Accuracy figures are AfterCheck estimates, not Chess.com's official scores."
+          } > notes.md
+          cat notes.md
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          name: AfterCheck ${{ needs.build.outputs.version }}
+          body_path: notes.md
           files: |
-            AfterCheck-${{ github.ref_name }}-debug.apk
-            AfterCheck-${{ github.ref_name }}-debug.apk.sha256
-          generate_release_notes: true
-          body: |
-            This is a debug APK intended for early testing, not a production-signed release.
-            It contains a JNI-built Stockfish 19 shared library (GPLv3) and downloads the official
-            matching NNUE network at first analysis. Corresponding source and licensing information
-            are documented in third_party/stockfish/README.md. Configure secure release signing
-            before distributing a production app.
+            dist/*.apk
+            dist/*.apk.sha256
+          fail_on_unmatched_files: true
