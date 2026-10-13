@@ -18,7 +18,7 @@ AfterCheck reviews completed chess games on-device with Stockfish, explains move
 
 ## Status
 
-See [Project status](docs/PROJECT_STATUS.md). The JNI migration is undergoing a fresh CI build and has not yet been validated on a physical device. Follow the Actions results before treating the latest APK as verified.
+See [Project status](docs/PROJECT_STATUS.md). GitHub Actions builds the JNI engine and debug APK and runs the unit tests. The NNUE cache is checked against its SHA-256 filename prefix before reuse. No physical-device or emulator runtime validation has been performed yet.
 
 ## Build
 
