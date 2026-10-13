@@ -42,6 +42,7 @@ data class EnginePositionResult(
 object StockfishEngine {
     private const val NNUE_FILE_NAME = "nn-1a298aa575a0.nnue"
     private const val NNUE_SHA256_PREFIX = "1a298aa575a0"
+    private const val MIN_NNUE_FILE_SIZE = 1_000_000L
     private const val ENGINE_TIMEOUT_MS = 120_000L
     private val engineMutex = Mutex()
 
@@ -127,7 +128,17 @@ object StockfishEngine {
     private fun ensureNetworkFile(context: Context): File {
         val directory = File(context.filesDir, "engine").apply { mkdirs() }
         val destination = File(directory, NNUE_FILE_NAME)
-        if (destination.isFile && destination.length() > 0L) return destination
+        // A previous process may have been killed during download or storage may have
+        // corrupted the cached file. Never trust a non-empty cache without checking it.
+        if (destination.isFile &&
+            destination.length() >= MIN_NNUE_FILE_SIZE &&
+            hasExpectedSha256Prefix(destination, NNUE_SHA256_PREFIX)
+        ) {
+            return destination
+        }
+        if (destination.exists() && !destination.delete()) {
+            throw IOException("The cached Stockfish network is invalid and could not be removed.")
+        }
 
         val temporary = File(directory, "$NNUE_FILE_NAME.part")
         temporary.delete()
@@ -172,11 +183,26 @@ object StockfishEngine {
             connection.inputStream.use { input ->
                 temporary.outputStream().buffered().use { output -> input.copyTo(output, DEFAULT_BUFFER_SIZE * 16) }
             }
-            if (temporary.length() < 1_000_000L) {
+            if (temporary.length() < MIN_NNUE_FILE_SIZE) {
                 throw IOException("The downloaded Stockfish network is incomplete.")
             }
+            if (!hasExpectedSha256Prefix(temporary, NNUE_SHA256_PREFIX)) {
+                throw IOException("The downloaded Stockfish network failed its SHA-256 check.")
+            }
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    /**
+     * Check the cached/downloaded network by its published filename hash prefix.
+     * Internal visibility also makes the integrity check straightforward to unit test.
+     */
+    internal fun hasExpectedSha256Prefix(file: File, prefix: String): Boolean {
+        if (!file.isFile) return false
+        return try {
             val digest = MessageDigest.getInstance("SHA-256")
-            temporary.inputStream().buffered().use { input ->
+            file.inputStream().buffered().use { input ->
                 val buffer = ByteArray(64 * 1024)
                 while (true) {
                     val count = input.read(buffer)
@@ -184,12 +210,9 @@ object StockfishEngine {
                     digest.update(buffer, 0, count)
                 }
             }
-            val sha = digest.digest().joinToString("") { "%02x".format(it) }
-            if (!sha.startsWith(NNUE_SHA256_PREFIX)) {
-                throw IOException("The downloaded Stockfish network failed its SHA-256 check.")
-            }
-        } finally {
-            connection.disconnect()
+            digest.digest().joinToString("") { "%02x".format(it) }.startsWith(prefix)
+        } catch (_: IOException) {
+            false
         }
     }
 
