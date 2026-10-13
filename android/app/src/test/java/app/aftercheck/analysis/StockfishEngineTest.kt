@@ -1,11 +1,24 @@
 package app.aftercheck.analysis
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 class StockfishEngineTest {
+    @Test
+    fun verifiesSha256PrefixForCachedNetworkFiles() {
+        val file = File.createTempFile("aftercheck-network-test", ".bin")
+        try {
+            file.writeText("abc")
+            assertTrue(StockfishEngine.hasExpectedSha256Prefix(file, "ba7816bf8f01"))
+            assertFalse(StockfishEngine.hasExpectedSha256Prefix(file, "000000000000"))
+        } finally {
+            file.delete()
+        }
+    }
+
     @Test
     fun parsesCentipawnInfoAndPrincipalVariation() {
         val result = StockfishEngine.parseInfo(
