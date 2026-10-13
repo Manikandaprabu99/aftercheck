@@ -4,6 +4,7 @@
 set -uo pipefail
 mkdir -p build/device build/screens/device
 adb logcat -c || true
+adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS >/dev/null 2>&1 || true
 adb logcat -v threadtime > build/device/logcat.txt 2>&1 &
 LOGCAT=$!
 ./gradlew :app:connectedDebugAndroidTest --info \

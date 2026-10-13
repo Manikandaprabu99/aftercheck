@@ -12,6 +12,7 @@ import androidx.test.uiautomator.Until
 import app.aftercheck.chess.GameLine
 import app.aftercheck.chess.Pgn
 import app.aftercheck.chess.ReplayResult
+import app.aftercheck.chess.analysis.MoveClass
 import app.aftercheck.chess.analysis.Score
 import app.aftercheck.chess.engine.EngineSettings
 import app.aftercheck.chess.engine.UciEngine
@@ -100,14 +101,20 @@ class DeviceEngineTest {
                 ),
             ),
         )
-        val settings = EngineSettings(depth = 12, movetimeMillis = 1_000, multiPv = 2, threads = 2)
+        // One thread keeps the search deterministic.
+        val settings = EngineSettings(depth = 12, movetimeMillis = 2_000, multiPv = 2, threads = 1)
         val outcome = c.analysis.withEngine(settings) { engine -> c.analysis.analyze(c.db.games().get(id)!!, engine, settings) }
         assertEquals(AnalysisOutcome.Done, outcome)
         val game = c.db.games().get(id)!!
         assertEquals(GameStatus.READY, game.status)
         assertEquals(33, c.db.reviews().moves(id).size)
         assertTrue(game.userAccuracy!! < game.opponentAccuracy!!)
-        assertTrue("practice positions from Black's errors", c.db.practice().stats(Long.MAX_VALUE).first().total > 0)
+        // Every serious error by the user (Black here) becomes exactly one practice position.
+        val serious = c.db.reviews().moves(id).count { m ->
+            m.isUser && m.bestUci != null &&
+                MoveClass.fromName(m.classification)?.isSerious == true
+        }
+        assertEquals(serious, c.db.practice().queue(Long.MAX_VALUE, "", false, 500).count { it.gameId == id })
         c.db.games().delete(id)
     }
 }
@@ -151,9 +158,16 @@ class AppTourTest {
         device.takeScreenshot(File(dir, "$name.png"))
     }
 
-    private fun find(text: String, timeoutMillis: Long): UiObject2 =
-        device.wait(Until.findObject(By.textContains(text)), timeoutMillis)
-            ?: throw AssertionError("\"$text\" did not appear within ${timeoutMillis / 1000}s")
+    /** Waits for [text], dismissing system "isn't responding" dialogs that CI emulators show (launcher ANRs). */
+    private fun find(text: String, timeoutMillis: Long): UiObject2 {
+        val deadline = System.currentTimeMillis() + timeoutMillis
+        while (System.currentTimeMillis() < deadline) {
+            device.findObject(By.pkg("android").text("Wait"))?.click()
+            device.wait(Until.findObject(By.textContains(text)), 2_000)?.let { return it }
+        }
+        shot("failed-waiting-for-${text.filter { it.isLetterOrDigit() }}")
+        throw AssertionError("\"$text\" did not appear within ${timeoutMillis / 1000}s")
+    }
 
     @Test fun onboardingSyncAnalysisAndReview() {
         assumeTrue(arg("liveChessCom") == "true")
