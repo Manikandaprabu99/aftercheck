@@ -116,6 +116,9 @@ dependencies {
     implementation(project(":chess"))
 
     implementation(libs.kotlinx.coroutines.android)
+    // Navigation brings kotlinx-serialization 1.7.x; Room's schema tools (migration tests) need ≥ 1.8.1,
+    // and instrumented tests share the app's runtime classpath.
+    implementation(libs.kotlinx.serialization.core)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.activity.compose)

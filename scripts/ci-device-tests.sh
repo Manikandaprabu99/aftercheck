@@ -7,7 +7,8 @@ adb logcat -c || true
 adb logcat -v threadtime > build/device/logcat.txt 2>&1 &
 LOGCAT=$!
 ./gradlew :app:connectedDebugAndroidTest --info \
-  -Pandroid.testInstrumentationRunnerArguments.liveChessCom=true 2>&1 \
+  -Pandroid.testInstrumentationRunnerArguments.liveChessCom=true \
+  -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true 2>&1 \
   | tee build/device/gradle.log \
   | grep -E --line-buffered '(SUCCESS|FAILED|SKIPPED|Starting [0-9]+ tests|Finished [0-9]+ tests|> Task :app:connected|BUILD )'
 STATUS=${PIPESTATUS[0]}
