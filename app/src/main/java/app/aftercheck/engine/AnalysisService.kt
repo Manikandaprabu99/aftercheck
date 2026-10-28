@@ -178,15 +178,13 @@ class AnalysisService(
         } catch (e: EngineException) {
             val attempts = game.attempts + 1
             val retry = attempts < MAX_ATTEMPTS
-            games.update(
-                game.copy(
-                    status = if (retry) GameStatus.QUEUED else GameStatus.FAILED,
-                    statusMessage = e.message,
-                    attempts = attempts,
-                    priority = if (retry) Priority.BACKLOG else game.priority,
-                    progress = 0,
-                    queueOrder = if (retry) game.queueOrder else null,
-                ),
+            games.recordFailure(
+                id = game.id,
+                status = if (retry) GameStatus.QUEUED else GameStatus.FAILED,
+                message = e.message,
+                attempts = attempts,
+                priority = if (retry) Priority.BACKLOG else game.priority,
+                keepPick = retry,
             )
             return AnalysisOutcome.Failed(e.message ?: "Engine error", retry)
         }
@@ -206,8 +204,9 @@ class AnalysisService(
                 ReviewCodec.reviewEntity(game.id, review, engineName, engineSettings.key, engineSettings.depth, elapsed, now),
             )
             db.practice().insertIgnore(practicePositions(game, line, evals, review, userSide, now))
+            val current = db.games().get(game.id) ?: return@withTransaction
             db.games().update(
-                game.copy(
+                current.copy(
                     status = GameStatus.READY,
                     statusMessage = null,
                     progress = 100,

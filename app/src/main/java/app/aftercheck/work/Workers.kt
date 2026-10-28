@@ -16,9 +16,11 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import app.aftercheck.AfterCheckApp
+import app.aftercheck.AppContainer
 import app.aftercheck.data.chesscom.ApiException
 import app.aftercheck.data.chesscom.NotFoundException
 import app.aftercheck.data.chesscom.TransientApiException
+import app.aftercheck.data.settings.AppSettings
 import app.aftercheck.engine.AnalysisOutcome
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -163,6 +165,16 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
             c.scheduler.downloadNetwork(wifiOnly = false)
             return Result.success()
         }
+        // Another run is active; it takes new picks too (an automatic game yields to them).
+        if (!c.analysisLock.tryLock()) return Result.success()
+        try {
+            return analyse(c, settings)
+        } finally {
+            c.analysisLock.unlock()
+        }
+    }
+
+    private suspend fun analyse(c: AppContainer, settings: AppSettings): Result {
         val games = c.db.games()
         games.resetInterrupted()
         val engineSettings = settings.engineSettings()

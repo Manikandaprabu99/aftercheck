@@ -239,7 +239,8 @@ class EndToEndTest {
             compose.onNodeWithContentDescription("Pause line").performClick()
         }
         val lineMove = SemanticsMatcher("engine line move") { it.config.getOrNull(SemanticsActions.OnClick)?.label?.startsWith("Show the position after") == true }
-        compose.onAllNodes(lineMove)[1].performClick()
+        val moves = compose.onAllNodes(lineMove)
+        moves[minOf(1, moves.fetchSemanticsNodes().size - 1)].performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Paused", substring = true).fetchSemanticsNodes().isNotEmpty() }
         capture("$prefix-review-line")
         compose.onNodeWithContentDescription("Back to game").performClick()

@@ -290,9 +290,12 @@ private fun QueueList(s: QueueState, battery: Battery, vm: QueueViewModel, onOpe
                     detectDragGestures(
                         onDragStart = { dragging = g.id; dragOffset = 0f },
                         onDragEnd = {
-                            val ids = working.map { it.id }
+                            val latest = latestPicks.associateBy { it.id }
+                            val ordered = working.mapNotNull { latest[it.id] }
+                            working = ordered + latestPicks.filter { p -> ordered.none { it.id == p.id } }
                             dragging = null
                             dragOffset = 0f
+                            val ids = working.map { it.id }
                             if (ids != latestPicks.map { it.id }) vm.reorder(ids)
                         },
                         onDragCancel = { dragging = null; dragOffset = 0f; working = latestPicks },

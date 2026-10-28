@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,13 +72,14 @@ fun EvalGraph(
     val surface = MaterialTheme.colorScheme.surfaceContainer
     val accent = MaterialTheme.colorScheme.primary
     val n = winChances.size
+    val selectPly by rememberUpdatedState(onSelect)
     Canvas(
         modifier.fillMaxWidth().height(height).clip(RoundedCornerShape(8.dp))
             .semantics { contentDescription = "Evaluation graph, ${n - 1} moves. Touch to jump to a move." }
             .pointerInput(n, scrub) {
                 fun select(x: Float) {
                     if (n < 2) return
-                    onSelect(((x / size.width) * (n - 1)).roundToInt().coerceIn(0, n - 1))
+                    selectPly(((x / size.width) * (n - 1)).roundToInt().coerceIn(0, n - 1))
                 }
                 if (!scrub) {
                     detectTapGestures { select(it.x) }

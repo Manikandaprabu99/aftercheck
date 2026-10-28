@@ -69,7 +69,7 @@ private const val SUMMARY_COLUMNS =
         "(SELECT COUNT(*) FROM games p WHERE p.status = 'queued' AND p.queueOrder <= games.queueOrder) END AS queueRank"
 
 /** Matches the order the analysis worker takes games in: the user's picks, then newest and recent games. */
-private const val QUEUE_ORDER = "(queueOrder IS NULL), queueOrder, priority DESC, endTime DESC"
+private const val QUEUE_ORDER = "(queueOrder IS NULL), queueOrder, priority DESC, endTime DESC, id"
 
 private const val LIBRARY_FILTER =
     "(:query = '' OR opponentLower LIKE '%' || :query || '%' OR openingLower LIKE '%' || :query || '%' OR eco LIKE :query || '%') " +
@@ -145,14 +145,21 @@ interface GameDao {
     @Query("SELECT COUNT(*) FROM games WHERE status = 'queued' AND queueOrder IS NULL AND priority < ${Priority.NEW} AND endTime < :minEndTime")
     suspend fun backlogCount(minEndTime: Long): Int
 
-    @Query("SELECT $SUMMARY_COLUMNS FROM games WHERE status = 'queued' AND queueOrder IS NOT NULL ORDER BY queueOrder")
+    @Query("SELECT $SUMMARY_COLUMNS FROM games WHERE status = 'queued' AND queueOrder IS NOT NULL ORDER BY $QUEUE_ORDER")
     fun observePicks(): Flow<List<GameSummary>>
 
     @Query("SELECT $SUMMARY_COLUMNS FROM games WHERE status = 'queued' AND queueOrder IS NULL ORDER BY $QUEUE_ORDER LIMIT :limit")
     fun observeAutoQueue(limit: Int): Flow<List<GameSummary>>
 
-    @Query("SELECT id FROM games WHERE status = 'queued' AND queueOrder IS NOT NULL ORDER BY queueOrder")
+    @Query("SELECT id FROM games WHERE status = 'queued' AND queueOrder IS NOT NULL ORDER BY $QUEUE_ORDER")
     suspend fun pickedIds(): List<String>
+
+    /** Every pick, the one being analysed first. */
+    @Query("SELECT id FROM games WHERE queueOrder IS NOT NULL ORDER BY (status != 'analyzing'), $QUEUE_ORDER")
+    suspend fun allPickIds(): List<String>
+
+    @Query("UPDATE games SET queueOrder = :order WHERE id = :id")
+    suspend fun setQueueOrder(id: String, order: Long)
 
     @Query(
         "SELECT CASE WHEN g.queueOrder IS NULL OR g.status != 'queued' THEN NULL ELSE " +
@@ -191,8 +198,15 @@ interface GameDao {
     @Query("UPDATE games SET status = 'queued', progress = 0 WHERE status = 'analyzing'")
     suspend fun resetInterrupted(): Int
 
-    @Query("UPDATE games SET status = 'queued', statusMessage = NULL, attempts = 0, priority = MAX(priority, :priority) WHERE id = :id")
+    @Query("UPDATE games SET status = 'queued', statusMessage = NULL, attempts = 0, priority = MAX(priority, :priority) WHERE id = :id AND status != 'analyzing'")
     suspend fun requeue(id: String, priority: Int)
+
+    /** Engine failure: keeps the game's current pick (not a stale copy) while it will be retried. */
+    @Query(
+        "UPDATE games SET status = :status, statusMessage = :message, attempts = :attempts, priority = :priority, progress = 0, " +
+            "queueOrder = CASE WHEN :keepPick THEN queueOrder ELSE NULL END WHERE id = :id",
+    )
+    suspend fun recordFailure(id: String, status: String, message: String?, attempts: Int, priority: Int, keepPick: Boolean)
 
     @Query("UPDATE games SET status = 'queued', statusMessage = NULL, attempts = 0 WHERE status = 'failed'")
     suspend fun requeueFailed(): Int

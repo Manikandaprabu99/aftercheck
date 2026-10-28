@@ -409,7 +409,7 @@ private fun Panel(state: ReviewUiState, data: ReviewData, vm: ReviewViewModel, o
         }
         MoveStrip(data, ply) { onTick(); vm.select(it) }
         when {
-            !data.analysed -> PendingCard(data, ply, state.queueRank, vm::analyseNext, onOpenQueue)
+            !data.analysed -> PendingCard(data, ply, state.queueRank, state.settings.analysisPaused, vm::analyseNext, onOpenQueue)
             ply == 0 -> StartCard(data, onFirstMistake = { onTick(); vm.nextMistake() }, onStart = { onTick(); vm.next() })
             else -> data.move(ply)?.let { m -> CoachCard(data, m) { kind, alt -> onTick(); vm.showLine(kind, alt) } }
         }
@@ -722,7 +722,7 @@ private fun countOf(c: MoveClass, n: Int): String {
 }
 
 @Composable
-private fun PendingCard(data: ReviewData, ply: Int, queueRank: Int?, onAnalyse: () -> Unit, onOpenQueue: () -> Unit) {
+private fun PendingCard(data: ReviewData, ply: Int, queueRank: Int?, paused: Boolean, onAnalyse: () -> Unit, onOpenQueue: () -> Unit) {
     val g = data.game
     AppCard(Modifier.fillMaxWidth(), contentPadding = PaddingValues(14.dp)) {
         when (g.status) {
@@ -749,8 +749,11 @@ private fun PendingCard(data: ReviewData, ply: Int, queueRank: Int?, onAnalyse: 
                     style = MaterialTheme.typography.titleSmall,
                 )
                 Text(
-                    if (queueRank == null) "Games are analysed automatically, newest first. Move this one to the front to see its review sooner."
-                    else "Games you pick are analysed before the rest.",
+                    when {
+                        paused -> "Analysis is paused. Resume it from the queue."
+                        queueRank == null -> "Games are analysed automatically, newest first. Move this one to the front to see its review sooner."
+                        else -> "Games you pick are analysed before the rest."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

@@ -128,10 +128,11 @@ class GamesViewModel(private val c: AppContainer) : ViewModel() {
         selection.update { current -> current + ids.filter { it !in current } }
     }
 
-    suspend fun analyseSelected(): Int {
+    /** Picks the selection; returns how many games were added and whether analysis is paused. */
+    suspend fun analyseSelected(): Pair<Int, Boolean> {
         val ids = selection.value
         selection.value = emptyList()
-        return c.queue.pick(ids)
+        return c.queue.pick(ids) to c.settings.current().analysisPaused
     }
 
     companion object {
@@ -238,8 +239,16 @@ fun GamesScreen(container: AppContainer, onOpenQueue: () -> Unit = {}, onOpenGam
             if (selecting) {
                 SelectionBar(selection.size) {
                     scope.launch {
-                        val n = vm.analyseSelected()
-                        tell(if (n == 1) "1 game will be analysed first" else "$n games will be analysed first", "View queue")
+                        val (n, paused) = vm.analyseSelected()
+                        val games = if (n == 1) "1 game" else "$n games"
+                        tell(
+                            when {
+                                n == 0 -> "Those games are already in your picks"
+                                paused -> "$games picked · analysis is paused"
+                                else -> "$games will be analysed first"
+                            },
+                            "View queue",
+                        )
                     }
                 }
             }

@@ -116,6 +116,29 @@ class QueueTest {
         assertEquals(listOf("old1", "old2", "new", "recent", "old3"), order())
     }
 
+    @Test fun reorderKeepsTheGameInProgressFirstWithUniquePlaces() = runBlocking {
+        queue.pick(listOf("old1", "old2", "old3"))
+        games.setStatus("old1", GameStatus.ANALYZING, null, 30)
+        queue.reorder(listOf("old3", "old2"))
+        // Paused or killed: the interrupted pick goes back to the front, and no two picks share a place.
+        games.resetInterrupted()
+        assertEquals(listOf("old1", "old3", "old2"), games.pickedIds())
+        assertEquals(listOf(1, 2, 3), games.observePicks().first().map { it.queueRank })
+    }
+
+    @Test fun engineFailureKeepsTheCurrentPickAndRequeueLeavesAGameInProgressAlone() = runBlocking {
+        queue.pick(listOf("old1", "old2"))
+        games.setStatus("old2", GameStatus.ANALYZING, null, 10)
+        games.requeue("old2", Priority.BACKLOG)
+        assertEquals(GameStatus.ANALYZING, games.get("old2")!!.status)
+        queue.reorder(listOf("old1"))
+        games.recordFailure("old2", GameStatus.QUEUED, "Engine crashed", 1, Priority.BACKLOG, keepPick = true)
+        assertEquals(listOf("old2", "old1"), games.pickedIds())
+        games.recordFailure("old2", GameStatus.FAILED, "Engine crashed", 3, Priority.BACKLOG, keepPick = false)
+        assertEquals(listOf("old1"), games.pickedIds())
+        assertNull(games.get("old2")!!.queueOrder)
+    }
+
     @Test fun picksIgnoreTheChargingWindow() = runBlocking {
         val window = 9 * DAY
         assertEquals("new", games.nextQueued(window)!!.id)

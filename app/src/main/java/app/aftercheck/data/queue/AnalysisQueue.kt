@@ -43,8 +43,7 @@ class AnalysisQueue(private val db: AppDatabase, private val onPicked: () -> Uni
     /** Makes the waiting picks follow [ids]; picks missing from [ids] keep their relative order after them. */
     suspend fun reorder(ids: List<String>) = db.withTransaction {
         val waiting = games.pickedIds()
-        val ordered = ids.filter { it in waiting } + waiting.filter { it !in ids }
-        ordered.forEachIndexed { i, id -> games.setPick(id, i.toLong()) }
+        renumber(ids.filter { it in waiting } + waiting.filter { it !in ids })
     }
 
     suspend fun moveToTop(id: String) = move(id) { 0 }
@@ -56,6 +55,12 @@ class AnalysisQueue(private val db: AppDatabase, private val onPicked: () -> Uni
         val from = ids.indexOf(id)
         if (from < 0) return@withTransaction
         ids.add(target(from).coerceIn(0, ids.size - 1), ids.removeAt(from))
-        ids.forEachIndexed { i, g -> games.setPick(g, i.toLong()) }
+        renumber(ids)
+    }
+
+    /** Numbers every pick from 0 so none share a place; a pick being analysed stays in front if it's interrupted. */
+    private suspend fun renumber(waiting: List<String>) {
+        val inProgress = games.allPickIds().filter { it !in waiting }
+        (inProgress + waiting).forEachIndexed { i, id -> games.setQueueOrder(id, i.toLong()) }
     }
 }
