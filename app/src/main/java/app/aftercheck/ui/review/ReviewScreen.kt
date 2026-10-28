@@ -709,7 +709,7 @@ private fun errorSummary(data: ReviewData, hint: Boolean = false): String {
         if (n == 0) null else countOf(c, n)
     }
     val list = if (parts.size == 1) parts[0] else parts.dropLast(1).joinToString(", ") + " and " + parts.last()
-    return "$who $list." + if (hint) " Mistake, below, jumps between them." else ""
+    return "$who $list." + if (hint) " Tap Mistake below to jump between them." else ""
 }
 
 private fun countOf(c: MoveClass, n: Int): String {

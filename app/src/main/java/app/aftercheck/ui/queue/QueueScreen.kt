@@ -390,9 +390,9 @@ private fun PickRow(
     onTop: () -> Unit,
     onMove: (Int) -> Unit,
     onRemove: () -> Unit,
-    handle: Modifier,
-    modifier: Modifier,
     lifted: Boolean,
+    modifier: Modifier = Modifier,
+    handle: Modifier = Modifier,
 ) {
     var menu by remember { mutableStateOf(false) }
     AppCard(

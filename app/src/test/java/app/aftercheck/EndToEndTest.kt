@@ -249,7 +249,7 @@ class EndToEndTest {
     /** Games tab in selection mode with two waiting games picked. */
     private fun captureSelection(prefix: String, waiting: List<String>) {
         capture("$prefix-games")
-        val gameList = hasScrollToKeyAction() and hasAnyDescendant(hasText("accuracy"))
+        val gameList = hasScrollToKeyAction() and !hasAnyDescendant(hasText("Colour"))
         compose.onNode(gameList).performScrollToKey(waiting[0])
         compose.onAllNodesWithText("Queued", substring = true)[0].performTouchInput { longClick() }
         compose.onAllNodesWithText("Queued", substring = true)[1].performClick()

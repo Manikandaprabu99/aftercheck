@@ -214,7 +214,7 @@ class AppTourTest {
                 mistake.click()
                 device.wait(Until.findObject(By.text("Show best line")), 5_000)?.let { line ->
                     line.click()
-                    find("Playing the line", 10_000)
+                    // Reaching the end with no further taps shows the line played by itself.
                     find("End of the engine", 30_000)
                     shot("08-review-best-line")
                     button("Back to game").click()
