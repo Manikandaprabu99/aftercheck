@@ -343,7 +343,10 @@ class ReviewViewModel(private val c: AppContainer, private val gameId: String) :
             while (true) {
                 val l = ui.value.line ?: return@launch
                 if (l.finished) break
-                ui.update { it.copy(line = l.copy(index = l.index + 1), animate = l.nextMove) }
+                val next = l.copy(index = l.index + 1)
+                // The last move stops playback at once, so the controls never show Pause on a finished line.
+                ui.update { it.copy(line = next.copy(playing = !next.finished), animate = l.nextMove) }
+                if (next.finished) return@launch
                 delay(LINE_STEP_MILLIS)
             }
             ui.update { s -> s.copy(line = s.line?.copy(playing = false)) }
