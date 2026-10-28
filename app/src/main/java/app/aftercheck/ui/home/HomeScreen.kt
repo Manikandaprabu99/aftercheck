@@ -133,6 +133,7 @@ fun HomeScreen(
     onOpenGame: (String) -> Unit,
     onOpenTab: (String) -> Unit,
     onPractice: () -> Unit,
+    onOpenQueue: () -> Unit = {},
 ) {
     val vm: HomeViewModel = viewModel { HomeViewModel(container) }
     val state by vm.state.collectAsStateWithLifecycle()
@@ -161,7 +162,7 @@ fun HomeScreen(
                         StatTile("Waiting", "%,d".format(s.counts.pending), Modifier.weight(1f))
                     }
                 }
-                if (s.counts.pending > 0) item { ContinueCard(s, onOpenGame, vm::setPaused) }
+                if (s.counts.pending > 0) item { ContinueCard(s, onOpenQueue, vm::setPaused) }
                 if (s.reviewed.size >= 2) item { TrendCard(s.reviewed, onOpenTab) }
                 item { RecentResults(s.recent, onOpenGame, onOpenTab) }
                 if (s.practiceDue > 0) item { PracticeShortcut(s.practiceDue, onPractice) }
@@ -402,9 +403,9 @@ private fun CountChip(c: MoveClass, n: Int) {
 }
 
 @Composable
-private fun ContinueCard(s: HomeState, onOpenGame: (String) -> Unit, onPause: (Boolean) -> Unit) {
+private fun ContinueCard(s: HomeState, onOpenQueue: () -> Unit, onPause: (Boolean) -> Unit) {
     val paused = s.settings.analysisPaused
-    AppCard(Modifier.fillMaxWidth()) {
+    AppCard(Modifier.fillMaxWidth(), onClick = onOpenQueue) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(if (paused) "Reviews paused" else "Continue reviewing", style = MaterialTheme.typography.titleSmall)
@@ -433,6 +434,12 @@ private fun ContinueCard(s: HomeState, onOpenGame: (String) -> Unit, onPause: (B
         if (!s.network.ready) {
             Spacer(Modifier.height(8.dp))
             Text("Starts as soon as the engine network is downloaded.", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textMuted)
+        }
+        Spacer(Modifier.height(4.dp))
+        TextButton(onClick = onOpenQueue, contentPadding = PaddingValues(horizontal = 0.dp)) {
+            AppIcon(R.drawable.ic_format_list_numbered, null, size = 18.dp, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(6.dp))
+            Text("Choose what's analysed first")
         }
     }
 }

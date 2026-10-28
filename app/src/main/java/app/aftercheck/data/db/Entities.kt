@@ -28,6 +28,7 @@ object Priority {
         Index("userResult"),
         Index("timeClass"),
         Index("opponentLower"),
+        Index("queueOrder"),
     ],
 )
 data class GameEntity(
@@ -82,6 +83,8 @@ data class GameEntity(
     val userMisses: Int? = null,
     val importedAt: Long,
     val analyzedAt: Long? = null,
+    /** Set when the user picked this game to be analysed early; lower values go first. */
+    val queueOrder: Long? = null,
 )
 
 @Entity(

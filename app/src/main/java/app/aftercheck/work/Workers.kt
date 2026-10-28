@@ -176,9 +176,11 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
                     System.currentTimeMillis() - RECENT_WINDOW_MILLIS
                 } else 0L
                 val next = games.nextQueued(minEndTime) ?: break
+                val picked = next.queueOrder != null
                 setProgress(workDataOf("gameId" to next.id))
-                when (val outcome = c.analysis.analyze(next, engine, engineSettings)) {
+                when (val outcome = c.analysis.analyze(next, engine, engineSettings) { !picked && games.hasWaitingPicks() }) {
                     AnalysisOutcome.Done -> analyzed++
+                    AnalysisOutcome.Yielded -> Unit
                     is AnalysisOutcome.Failed -> if (outcome.willRetry) {
                         engineFailures++
                         if (engineFailures >= 2) break

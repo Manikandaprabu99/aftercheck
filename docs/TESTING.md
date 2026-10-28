@@ -13,11 +13,13 @@
 | Chess.com client: retries, 429/Retry-After, 5xx, network errors, ETag/304, not-found | `ChessComApiTest` | `app/src/test` |
 | Archive pagination newest-first, batching, resume, duplicate detection, closed months never refetched, current-month refresh, variants | `SyncEngineTest`, `GameMapperTest` | `app/src/test` |
 | Spaced repetition, insights maths, storage codec, formatting | `LogicTest` | `app/src/test` |
-| **End to end**: Chess.com-format archives → sync → real Stockfish → Room → restart persistence → queue recovery → every screen rendered in dark and light | `EndToEndTest` (Robolectric) | `app/src/test` |
+| Analysis queue: picks first in the chosen order, appending, "analyse next", reorder/move/remove, failed games re-queued, charging window bypass, ranks | `QueueTest` | `app/src/test` |
+| Database upgrade 1 → 2 on a real version-1 file, validated by Room | `MigrationJvmTest` | `app/src/test` |
+| **End to end**: Chess.com-format archives → sync → real Stockfish → Room → restart persistence → queue recovery → every screen rendered in dark and light, including the review report, coach card, a best line paused mid-way, an unanalysed game's queue place, the queue screen and Games selection mode | `EndToEndTest` (Robolectric) | `app/src/test` |
 | Live Chess.com API (CI) | `LiveChessComTest` | `app/src/test`, `app/src/androidTest` |
 | Packaged engine executes on Android; game analysed and persisted on device | `DeviceEngineTest` | `app/src/androidTest` |
-| Room queries, queue order/charging filter, recovery, cascades; schema/migrations | `DatabaseTest`, `MigrationTest` | `app/src/androidTest` |
-| **App tour on an emulator**: onboarding with a real account → automatic import → network download → WorkManager analysis → review (UI Automator, screenshots) | `AppTourTest` | `app/src/androidTest` |
+| Room queries, queue order/charging filter, recovery, cascades; schema/migrations incl. 1 → 2 with data | `DatabaseTest`, `MigrationTest` | `app/src/androidTest` |
+| **App tour on an emulator**: onboarding with a real account → automatic import → network download → WorkManager analysis → review report → moves → best line playing by itself → analysis queue (UI Automator, screenshots) | `AppTourTest` | `app/src/androidTest` |
 
 Every instrumented test has a timeout that fails with the stuck thread's stack trace, so a hang can't stall CI. `scripts/ci-device-tests.sh` streams per-test results and saves logcat and screenshots for the workflow artifacts.
 

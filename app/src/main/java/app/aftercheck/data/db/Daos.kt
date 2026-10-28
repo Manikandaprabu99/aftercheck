@@ -38,6 +38,9 @@ data class GameSummary(
     val userBlunders: Int?,
     val userMistakes: Int?,
     val userInaccuracies: Int?,
+    val queueOrder: Long?,
+    /** 1-based place among the user's picks still waiting; null when not picked. */
+    val queueRank: Int?,
 )
 
 data class LibraryCounts(val total: Int, val ready: Int, val pending: Int, val failed: Int, val analyzing: Int)
@@ -61,7 +64,26 @@ data class InsightRow(
 private const val SUMMARY_COLUMNS =
     "id, url, white, black, whiteRating, blackRating, userColor, opponent, opponentRating, userRating, result, " +
         "userResult, termination, endTime, timeClass, timeControl, rated, eco, openingName, plies, status, " +
-        "statusMessage, progress, userAccuracy, opponentAccuracy, userBlunders, userMistakes, userInaccuracies"
+        "statusMessage, progress, userAccuracy, opponentAccuracy, userBlunders, userMistakes, userInaccuracies, queueOrder, " +
+        "CASE WHEN queueOrder IS NULL OR status != 'queued' THEN NULL ELSE " +
+        "(SELECT COUNT(*) FROM games p WHERE p.status = 'queued' AND p.queueOrder <= games.queueOrder) END AS queueRank"
+
+/** Matches the order the analysis worker takes games in: the user's picks, then newest and recent games. */
+private const val QUEUE_ORDER = "(queueOrder IS NULL), queueOrder, priority DESC, endTime DESC"
+
+private const val LIBRARY_FILTER =
+    "(:query = '' OR opponentLower LIKE '%' || :query || '%' OR openingLower LIKE '%' || :query || '%' OR eco LIKE :query || '%') " +
+        "AND (:result = '' OR userResult = :result) " +
+        "AND (:color = '' OR userColor = :color) " +
+        "AND (:timeClass = '' OR timeClass = :timeClass) " +
+        "AND (:status = '' OR (:status = 'pending' AND status IN ('queued', 'analyzing')) OR status = :status) "
+
+private const val LIBRARY_ORDER =
+    "ORDER BY " +
+        "CASE WHEN :sort = 1 THEN endTime END ASC, " +
+        "CASE WHEN :sort = 2 THEN COALESCE(userAccuracy, -1) END DESC, " +
+        "CASE WHEN :sort = 3 THEN COALESCE(userAccuracy, 101) END ASC, " +
+        "endTime DESC"
 
 @Dao
 interface GameDao {
@@ -101,32 +123,64 @@ interface GameDao {
     )
     fun counts(): Flow<LibraryCounts>
 
-    @Query(
-        "SELECT $SUMMARY_COLUMNS FROM games WHERE " +
-            "(:query = '' OR opponentLower LIKE '%' || :query || '%' OR openingLower LIKE '%' || :query || '%' OR eco LIKE :query || '%') " +
-            "AND (:result = '' OR userResult = :result) " +
-            "AND (:color = '' OR userColor = :color) " +
-            "AND (:timeClass = '' OR timeClass = :timeClass) " +
-            "AND (:status = '' OR (:status = 'pending' AND status IN ('queued', 'analyzing')) OR status = :status) " +
-            "ORDER BY " +
-            "CASE WHEN :sort = 1 THEN endTime END ASC, " +
-            "CASE WHEN :sort = 2 THEN COALESCE(userAccuracy, -1) END DESC, " +
-            "CASE WHEN :sort = 3 THEN COALESCE(userAccuracy, 101) END ASC, " +
-            "endTime DESC",
-    )
+    @Query("SELECT $SUMMARY_COLUMNS FROM games WHERE $LIBRARY_FILTER $LIBRARY_ORDER")
     fun library(query: String, result: String, color: String, timeClass: String, status: String, sort: Int): PagingSource<Int, GameSummary>
 
+    /** Games in the current library view that can still be picked for analysis, in display order. */
+    @Query("SELECT id FROM games WHERE $LIBRARY_FILTER AND status IN ('queued', 'failed') $LIBRARY_ORDER LIMIT :limit")
+    suspend fun libraryPickableIds(query: String, result: String, color: String, timeClass: String, status: String, sort: Int, limit: Int): List<String>
+
     @Query(
-        "SELECT * FROM games WHERE status = 'queued' AND (priority >= ${Priority.NEW} OR endTime >= :minEndTime) " +
-            "ORDER BY priority DESC, endTime DESC LIMIT 1",
+        "SELECT * FROM games WHERE status = 'queued' AND (queueOrder IS NOT NULL OR priority >= ${Priority.NEW} OR endTime >= :minEndTime) " +
+            "ORDER BY $QUEUE_ORDER LIMIT 1",
     )
     suspend fun nextQueued(minEndTime: Long): GameEntity?
 
     @Query("SELECT COUNT(*) FROM games WHERE status = 'queued'")
     suspend fun queuedCount(): Int
 
-    @Query("SELECT COUNT(*) FROM games WHERE status = 'queued' AND priority < ${Priority.NEW} AND endTime < :minEndTime")
+    @Query("SELECT COUNT(*) FROM games WHERE status = 'queued'")
+    fun observeQueuedCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM games WHERE status = 'queued' AND queueOrder IS NULL AND priority < ${Priority.NEW} AND endTime < :minEndTime")
     suspend fun backlogCount(minEndTime: Long): Int
+
+    @Query("SELECT $SUMMARY_COLUMNS FROM games WHERE status = 'queued' AND queueOrder IS NOT NULL ORDER BY queueOrder")
+    fun observePicks(): Flow<List<GameSummary>>
+
+    @Query("SELECT $SUMMARY_COLUMNS FROM games WHERE status = 'queued' AND queueOrder IS NULL ORDER BY $QUEUE_ORDER LIMIT :limit")
+    fun observeAutoQueue(limit: Int): Flow<List<GameSummary>>
+
+    @Query("SELECT id FROM games WHERE status = 'queued' AND queueOrder IS NOT NULL ORDER BY queueOrder")
+    suspend fun pickedIds(): List<String>
+
+    @Query(
+        "SELECT CASE WHEN g.queueOrder IS NULL OR g.status != 'queued' THEN NULL ELSE " +
+            "(SELECT COUNT(*) FROM games p WHERE p.status = 'queued' AND p.queueOrder <= g.queueOrder) END FROM games g WHERE g.id = :id",
+    )
+    fun observeQueueRank(id: String): Flow<Int?>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM games WHERE status = 'queued' AND queueOrder IS NOT NULL)")
+    suspend fun hasWaitingPicks(): Boolean
+
+    @Query("SELECT MIN(queueOrder) FROM games WHERE queueOrder IS NOT NULL")
+    suspend fun minQueueOrder(): Long?
+
+    @Query("SELECT MAX(queueOrder) FROM games WHERE queueOrder IS NOT NULL")
+    suspend fun maxQueueOrder(): Long?
+
+    /** Picks a game that still needs analysis; a failed one is queued again with fresh attempts. Returns 0 otherwise. */
+    @Query(
+        "UPDATE games SET queueOrder = :order, status = 'queued', statusMessage = NULL, progress = 0, " +
+            "attempts = CASE WHEN status = 'failed' THEN 0 ELSE attempts END WHERE id = :id AND status IN ('queued', 'failed')",
+    )
+    suspend fun setPick(id: String, order: Long): Int
+
+    @Query("UPDATE games SET queueOrder = NULL WHERE id = :id")
+    suspend fun unpick(id: String)
+
+    @Query("UPDATE games SET queueOrder = NULL WHERE queueOrder IS NOT NULL")
+    suspend fun clearPicks()
 
     @Query("UPDATE games SET status = :status, statusMessage = :message, progress = :progress WHERE id = :id")
     suspend fun setStatus(id: String, status: String, message: String?, progress: Int)

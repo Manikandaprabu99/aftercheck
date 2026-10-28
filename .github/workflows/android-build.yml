@@ -212,6 +212,11 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: CHANGELOG.md
+          sparse-checkout-cone-mode: false
+
       - uses: actions/download-artifact@v8
         with:
           name: aftercheck-apk
@@ -229,6 +234,12 @@ jobs:
             echo
             echo "Free, unlimited, on-device chess game reviews for your Chess.com games, powered by Stockfish 16."
             echo
+            CHANGES=$(awk -v v="## ${VERSION}" '$0 == v { f = 1; next } /^## / { f = 0 } f' CHANGELOG.md | sed '/^$/d')
+            if [ -n "$CHANGES" ]; then
+              echo "### What's new"
+              echo "$CHANGES"
+              echo
+            fi
             echo "**Download:** \`$(basename "$APK")\` ($(du -h "$APK" | cut -f1))"
             echo "**SHA-256:** \`${SUM}\`"
             echo "**Requires:** Android 8.0 (API 26) or newer, 64-bit ARM (almost all phones) or x86_64."

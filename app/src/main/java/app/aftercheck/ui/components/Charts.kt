@@ -3,6 +3,7 @@ package app.aftercheck.ui.components
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -63,6 +64,8 @@ fun EvalGraph(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
     height: Dp = 64.dp,
+    /** Drag to scrub through moves; when false a tap selects, so the graph can sit in a scrolling list. */
+    scrub: Boolean = true,
 ) {
     val colors = AppTheme.colors
     val surface = MaterialTheme.colorScheme.surfaceContainer
@@ -71,13 +74,17 @@ fun EvalGraph(
     Canvas(
         modifier.fillMaxWidth().height(height).clip(RoundedCornerShape(8.dp))
             .semantics { contentDescription = "Evaluation graph, ${n - 1} moves. Touch to jump to a move." }
-            .pointerInput(n) {
+            .pointerInput(n, scrub) {
+                fun select(x: Float) {
+                    if (n < 2) return
+                    onSelect(((x / size.width) * (n - 1)).roundToInt().coerceIn(0, n - 1))
+                }
+                if (!scrub) {
+                    detectTapGestures { select(it.x) }
+                    return@pointerInput
+                }
                 awaitEachGesture {
                     val down = awaitFirstDown()
-                    fun select(x: Float) {
-                        if (n < 2) return
-                        onSelect(((x / size.width) * (n - 1)).roundToInt().coerceIn(0, n - 1))
-                    }
                     select(down.position.x)
                     while (true) {
                         val event = awaitPointerEvent()
@@ -105,8 +112,10 @@ fun EvalGraph(
         }
         drawPath(area, colors.evalWhite)
         drawLine(Color(0x55888888), Offset(0f, h / 2), Offset(w, h / 2), strokeWidth = 1.dp.toPx())
-        val sel = selectedPly.coerceIn(0, n - 1)
-        drawLine(accent, Offset(x(sel), 0f), Offset(x(sel), h), strokeWidth = 2.dp.toPx())
+        if (selectedPly >= 0) {
+            val sel = selectedPly.coerceAtMost(n - 1)
+            drawLine(accent, Offset(x(sel), 0f), Offset(x(sel), h), strokeWidth = 2.dp.toPx())
+        }
         for ((ply, c) in markers) {
             if (ply !in 0 until n) continue
             val center = Offset(x(ply), y(winChances[ply]))

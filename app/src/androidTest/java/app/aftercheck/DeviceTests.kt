@@ -158,6 +158,9 @@ class AppTourTest {
         device.takeScreenshot(File(dir, "$name.png"))
     }
 
+    private fun button(description: String): UiObject2 =
+        device.wait(Until.findObject(By.desc(description)), 5_000) ?: throw AssertionError("no \"$description\" button")
+
     /** Waits for [text], dismissing system "isn't responding" dialogs that CI emulators show (launcher ANRs). */
     private fun find(text: String, timeoutMillis: Long): UiObject2 {
         val deadline = System.currentTimeMillis() + timeoutMillis
@@ -199,15 +202,31 @@ class AppTourTest {
             find("Open review", 900_000)
             shot("05-home-reviewed")
             find("Open review", 5_000).click()
-            find("Summary", 60_000)
-            shot("06-review-start")
-            repeat(12) {
-                (device.wait(Until.findObject(By.desc("Next move")), 5_000) ?: throw AssertionError("no Next move button")).click()
-            }
+            // An analysed game opens on its report; the moves tab steps through it.
+            find("Estimated accuracy", 60_000)
+            shot("06-review-report")
+            find("Moves", 5_000).click()
+            repeat(12) { button("Next move").click() }
             shot("07-review-move")
-            find("Summary", 5_000).click()
-            find("Game summary", 15_000)
-            shot("08-summary")
+            // Follow-up: the engine line plays out on the board by itself.
+            val mistake = device.wait(Until.findObject(By.desc("Next mistake")), 5_000)
+            if (mistake != null && mistake.isEnabled) {
+                mistake.click()
+                device.wait(Until.findObject(By.text("Show best line")), 5_000)?.let { line ->
+                    line.click()
+                    find("Playing the line", 10_000)
+                    find("End of the engine", 30_000)
+                    shot("08-review-best-line")
+                    button("Back to game").click()
+                }
+            }
+            find("Report", 5_000).click()
+            find("Estimated accuracy", 15_000)
+            device.pressBack()
+            (device.wait(Until.findObject(By.text("Games")), 15_000) ?: throw AssertionError("no Games tab")).click()
+            button("Analysis queue").click()
+            find("Analysis queue", 15_000)
+            shot("09-queue")
         }
         val ready = runBlocking { app.container.db.games().counts().first().ready }
         assertTrue("at least one review is ready", ready > 0)

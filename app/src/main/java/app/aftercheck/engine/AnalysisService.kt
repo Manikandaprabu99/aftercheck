@@ -73,7 +73,11 @@ sealed interface AnalysisOutcome {
     data object Done : AnalysisOutcome
     data class Skipped(val reason: String) : AnalysisOutcome
     data class Failed(val reason: String, val willRetry: Boolean) : AnalysisOutcome
+    /** Stopped between positions so a game the user picked can go first; finished positions stay cached. */
+    data object Yielded : AnalysisOutcome
 }
+
+private class YieldRequest : Exception()
 
 /**
  * Analyses one stored game with a running engine and persists the review, move list and practice
@@ -104,23 +108,31 @@ class AnalysisService(
         }
     }
 
-    suspend fun analyze(game: GameEntity, engine: UciEngine, engineSettings: EngineSettings): AnalysisOutcome {
+    suspend fun analyze(
+        game: GameEntity,
+        engine: UciEngine,
+        engineSettings: EngineSettings,
+        shouldYield: suspend () -> Boolean = { false },
+    ): AnalysisOutcome {
         val games = db.games()
         val pgn = try {
             Pgn.parse(game.pgn)
         } catch (e: PgnException) {
             games.setStatus(game.id, GameStatus.FAILED, "Invalid PGN: ${e.message}", 0)
+            games.unpick(game.id)
             return AnalysisOutcome.Failed("Invalid PGN", willRetry = false)
         }
         val line = when (val replay = GameLine.fromPgn(pgn)) {
             is ReplayResult.Success -> replay.line
             is ReplayResult.Failure -> {
                 games.setStatus(game.id, GameStatus.FAILED, replay.reason, 0)
+                games.unpick(game.id)
                 return AnalysisOutcome.Failed(replay.reason, willRetry = false)
             }
         }
         if (line.plyCount == 0) {
             games.setStatus(game.id, GameStatus.SKIPPED, "No moves were played", 0)
+            games.unpick(game.id)
             return AnalysisOutcome.Skipped("No moves")
         }
 
@@ -136,6 +148,7 @@ class AnalysisService(
                     games.setProgress(game.id, pct)
                     lastReported = pct
                 }
+                if (done < total && shouldYield()) throw YieldRequest()
             }
             val book = books.get()
             val match = book.match(line)
@@ -156,6 +169,9 @@ class AnalysisService(
             if (evaluator.engineCalls > 0) settings.recordAnalysisSpeed(evaluator.engineCalls, elapsed)
             pruneCache()
             return AnalysisOutcome.Done
+        } catch (e: YieldRequest) {
+            games.setStatus(game.id, GameStatus.QUEUED, null, 0)
+            return AnalysisOutcome.Yielded
         } catch (e: CancellationException) {
             withContext(NonCancellable) { games.setStatus(game.id, GameStatus.QUEUED, null, 0) }
             throw e
@@ -169,6 +185,7 @@ class AnalysisService(
                     attempts = attempts,
                     priority = if (retry) Priority.BACKLOG else game.priority,
                     progress = 0,
+                    queueOrder = if (retry) game.queueOrder else null,
                 ),
             )
             return AnalysisOutcome.Failed(e.message ?: "Engine error", retry)
@@ -209,6 +226,7 @@ class AnalysisService(
                     userBlunders = user?.count(MoveClass.BLUNDER),
                     userMisses = user?.let { it.count(MoveClass.MISS) + it.count(MoveClass.MISSED_MATE) },
                     analyzedAt = now,
+                    queueOrder = null,
                 ),
             )
         }

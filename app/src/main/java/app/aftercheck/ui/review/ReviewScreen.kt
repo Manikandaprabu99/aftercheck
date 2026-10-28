@@ -1,9 +1,11 @@
 package app.aftercheck.ui.review
 
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -12,7 +14,9 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,22 +36,25 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -59,9 +66,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -71,13 +85,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.aftercheck.AppContainer
 import app.aftercheck.R
-import app.aftercheck.chess.Move
+import app.aftercheck.chess.Position
 import app.aftercheck.chess.Side
 import app.aftercheck.chess.analysis.MoveClass
 import app.aftercheck.chess.analysis.Score
 import app.aftercheck.chess.analysis.display
 import app.aftercheck.chess.analysis.whiteWinChance
-import app.aftercheck.chess.formatLine
 import app.aftercheck.ui.components.AccuracyRing
 import app.aftercheck.ui.components.AppCard
 import app.aftercheck.ui.components.AppIcon
@@ -88,7 +101,6 @@ import app.aftercheck.ui.components.EmptyState
 import app.aftercheck.ui.components.EvalBar
 import app.aftercheck.ui.components.EvalGraph
 import app.aftercheck.ui.components.Format
-import app.aftercheck.ui.components.LabeledDivider
 import app.aftercheck.ui.components.Monogram
 import app.aftercheck.ui.components.Pill
 import app.aftercheck.ui.components.Skeleton
@@ -97,24 +109,27 @@ import app.aftercheck.ui.theme.AppTheme
 import app.aftercheck.ui.theme.classColor
 import app.aftercheck.ui.theme.numeric
 
-private enum class Sheet { SUMMARY, MOVES }
+private val BEST_ARROW = Color(0xD934B97A)
+private val THREAT_ARROW = Color(0xD9E0703A)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReviewScreen(container: AppContainer, gameId: String, onBack: () -> Unit) {
+fun ReviewScreen(container: AppContainer, gameId: String, onOpenQueue: () -> Unit = {}, onBack: () -> Unit) {
     val vm: ReviewViewModel = viewModel(key = "review-$gameId") { ReviewViewModel(container, gameId) }
     val state by vm.state.collectAsStateWithLifecycle()
     val haptics = LocalHapticFeedback.current
     val context = LocalContext.current
-    var sheet by remember { mutableStateOf<Sheet?>(null) }
     var menu by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     val data = state.data
+    val tab = state.currentTab
 
     fun tick(action: () -> Unit) {
         if (state.settings.haptics) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
         action()
     }
+
+    BackHandler(enabled = state.line != null) { vm.exitLine() }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -122,8 +137,9 @@ fun ReviewScreen(container: AppContainer, gameId: String, onBack: () -> Unit) {
             CenterAlignedTopAppBar(
                 navigationIcon = { IconButton(onClick = onBack) { AppIcon(R.drawable.ic_arrow_back, "Back") } },
                 title = {
-                    if (data != null) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    when {
+                        data?.analysed == true -> TabSwitch(tab) { t -> tick { vm.selectTab(t) } }
+                        data != null -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("vs ${data.game.opponent}", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
                                 "${data.game.result.replace("1/2-1/2", "½-½")} · ${Format.timeClass(data.game.timeClass)} · ${Format.shortDate(data.game.endTime)}",
@@ -138,6 +154,13 @@ fun ReviewScreen(container: AppContainer, gameId: String, onBack: () -> Unit) {
                     Box {
                         IconButton(onClick = { menu = true }) { AppIcon(R.drawable.ic_more_vert, "More options") }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                            if (data?.line != null) {
+                                DropdownMenuItem(
+                                    text = { Text(if (state.playing) "Stop playing the game" else "Play through the game") },
+                                    leadingIcon = { AppIcon(if (state.playing) R.drawable.ic_pause else R.drawable.ic_play_arrow, null, size = 20.dp) },
+                                    onClick = { menu = false; vm.toggleReplay() },
+                                )
+                            }
                             if (data?.analysed == true) {
                                 DropdownMenuItem(
                                     text = { Text("Analyse again") },
@@ -175,16 +198,18 @@ fun ReviewScreen(container: AppContainer, gameId: String, onBack: () -> Unit) {
             )
         },
         bottomBar = {
-            if (data?.line != null) {
-                Controls(
+            if (data?.line != null && tab == ReviewTab.MOVES) {
+                NavBar(
                     state = state,
-                    onSummary = { sheet = Sheet.SUMMARY },
-                    onMoves = { sheet = Sheet.MOVES },
+                    hasMistakes = data.userErrors.isNotEmpty(),
                     onFirst = { tick(vm::first) },
                     onPrevious = { tick(vm::previous) },
-                    onPlay = { tick(vm::toggleReplay) },
                     onNext = { tick(vm::next) },
                     onLast = { tick(vm::last) },
+                    onMistake = { tick(vm::nextMistake) },
+                    onExitLine = { tick(vm::exitLine) },
+                    onToggleLine = { tick(vm::toggleLine) },
+                    onReplayLine = { tick(vm::replayLine) },
                 )
             }
         },
@@ -194,21 +219,8 @@ fun ReviewScreen(container: AppContainer, gameId: String, onBack: () -> Unit) {
                 state.loading -> LoadingReview()
                 state.notFound || data == null -> EmptyState(R.drawable.ic_search, "Game not found", "It may have been deleted.")
                 data.line == null -> EmptyState(R.drawable.ic_error, "Can't show this game", data.invalidReason ?: "The PGN is invalid.")
-                else -> ReviewBody(state, data, vm, onTick = { if (state.settings.haptics) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick) })
-            }
-        }
-    }
-
-    if (sheet != null && data?.line != null) {
-        ModalBottomSheet(
-            onDismissRequest = { sheet = null },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        ) {
-            when (sheet) {
-                Sheet.SUMMARY -> SummarySheet(data, onJump = { vm.select(it); sheet = null }, onAnalyse = vm::analyseNow)
-                Sheet.MOVES -> MovesSheet(data, state.ply, onJump = { vm.select(it); sheet = null })
-                null -> Unit
+                tab == ReviewTab.REPORT -> ReportTab(data, onOpenMoves = { p -> tick { vm.openMoves(p) } })
+                else -> MovesTab(state, data, vm, onOpenQueue, onTick = { if (state.settings.haptics) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick) })
             }
         }
     }
@@ -224,6 +236,21 @@ fun ReviewScreen(container: AppContainer, gameId: String, onBack: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TabSwitch(tab: ReviewTab, onSelect: (ReviewTab) -> Unit) {
+    SingleChoiceSegmentedButtonRow(Modifier.widthIn(max = 220.dp)) {
+        listOf(ReviewTab.MOVES to "Moves", ReviewTab.REPORT to "Report").forEachIndexed { i, (t, label) ->
+            SegmentedButton(
+                selected = tab == t,
+                onClick = { onSelect(t) },
+                shape = SegmentedButtonDefaults.itemShape(index = i, count = 2),
+                icon = {},
+            ) { Text(label, maxLines = 1) }
+        }
+    }
+}
+
 @Composable
 private fun LoadingReview() {
     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -233,27 +260,26 @@ private fun LoadingReview() {
     }
 }
 
+// --------------------------------------------------------------------------- moves tab
+
 @Composable
-private fun ReviewBody(state: ReviewUiState, data: ReviewData, vm: ReviewViewModel, onTick: () -> Unit) {
+private fun MovesTab(state: ReviewUiState, data: ReviewData, vm: ReviewViewModel, onOpenQueue: () -> Unit, onTick: () -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wide = maxWidth >= 600.dp && maxWidth > maxHeight * 1.05f
+        val evalBar = if (data.analysed) 20.dp else 0.dp
+        val panel: @Composable () -> Unit = { Panel(state, data, vm, onOpenQueue, onTick) }
         if (wide) {
-            val boardSize = min(maxHeight - 96.dp, maxWidth * 0.55f)
+            val boardSize = min(maxHeight - 88.dp, maxWidth * 0.55f)
             Row(Modifier.fillMaxSize().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                 BoardBlock(state, data, boardSize, vm)
-                Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                    Panel(state, data, vm, onTick)
-                }
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(vertical = 8.dp)) { panel() }
             }
         } else {
-            // Leave room for the coach panel on short phones by capping the board.
-            val evalBar = if (data.analysed) 20.dp else 0.dp
-            val boardSize = min(maxWidth - 24.dp - evalBar, (maxHeight - 290.dp).coerceAtLeast(240.dp))
+            // The coach card keeps at least ~140dp under the board; very short screens scroll it.
+            val boardSize = min(maxWidth - 24.dp - evalBar, (maxHeight - 260.dp).coerceAtLeast(220.dp))
             Column(Modifier.fillMaxSize()) {
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { BoardBlock(state, data, boardSize, vm) }
-                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
-                    Panel(state, data, vm, onTick)
-                }
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)) { panel() }
             }
         }
     }
@@ -261,39 +287,34 @@ private fun ReviewBody(state: ReviewUiState, data: ReviewData, vm: ReviewViewMod
 
 @Composable
 private fun BoardBlock(state: ReviewUiState, data: ReviewData, boardSize: Dp, vm: ReviewViewModel) {
-    val line = data.line ?: return
+    val game = data.line ?: return
     val ply = state.ply
-    val variation = state.variation
+    val line = state.line
     val move = data.move(ply)
-    val position = variation?.position ?: line.positions[ply]
-    val lastMove = if (variation != null) variation.lastMove else line.moves.getOrNull(ply - 1)
-    val animate: Move? = when {
-        variation != null -> variation.lastMove
-        ply == state.previousPly + 1 -> line.moves[ply - 1]
-        ply == state.previousPly - 1 -> line.moves[ply].let { Move(it.to, it.from) }
-        else -> null
+    val position = line?.position ?: game.positions[ply]
+    val lastMove = if (line != null) line.lastMove else game.moves.getOrNull(ply - 1)
+    val arrows = when {
+        line != null -> line.nextMove?.takeIf { !line.playing || line.index == 0 }
+            ?.let { listOf(BoardArrow(it.from, it.to, if (line.kind == LineKind.PLAYED) THREAT_ARROW else BEST_ARROW)) }.orEmpty()
+        move?.bestMove != null && move.hasBetter -> listOf(BoardArrow(move.bestMove.from, move.bestMove.to, BEST_ARROW))
+        else -> emptyList()
     }
-    val arrows = if (variation == null && move != null && move.bestMove != null &&
-        move.moveClass != MoveClass.BEST && move.moveClass != MoveClass.BOOK
-    ) listOf(BoardArrow(move.bestMove.from, move.bestMove.to, Color(0xD934B97A))) else emptyList()
-    val badge = if (variation == null && move != null) {
-        SquareBadge(line.moves[ply - 1].to, classColor(move.moveClass), move.moveClass.symbol)
-    } else null
+    val badge = if (line == null && move != null) SquareBadge(game.moves[ply - 1].to, classColor(move.moveClass), move.moveClass.symbol) else null
     val score: Score? = when {
-        variation != null -> null
+        line != null -> line.score
         ply == 0 -> data.moves.firstOrNull()?.scoreBefore
         else -> move?.scoreAfter
     }
     val topSide = if (state.flipped) Side.WHITE else Side.BLACK
     val barWidth = if (data.analysed) 20.dp else 0.dp
+    val accent = MaterialTheme.colorScheme.primary
 
     Column(Modifier.width(boardSize + barWidth).padding(vertical = 4.dp)) {
-        PlayerStrip(data, topSide, ply, Modifier.padding(start = if (data.analysed) 20.dp else 0.dp))
+        PlayerStrip(data, topSide, ply, position, line == null, Modifier.padding(start = barWidth))
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (data.analysed) {
-                val fallback = data.winChances.getOrNull(ply) ?: 0.5f
                 EvalBar(
-                    whiteChance = score?.whiteWinChance()?.toFloat() ?: fallback,
+                    whiteChance = score?.whiteWinChance()?.toFloat() ?: data.winChances.getOrNull(ply) ?: 0.5f,
                     label = score?.display() ?: "",
                     flipped = state.flipped,
                     modifier = Modifier.width(14.dp).height(boardSize),
@@ -302,37 +323,52 @@ private fun BoardBlock(state: ReviewUiState, data: ReviewData, boardSize: Dp, vm
             }
             ChessBoard(
                 position = position,
-                modifier = Modifier.size(boardSize),
+                modifier = Modifier.size(boardSize)
+                    .then(if (line != null) Modifier.border(3.dp, accent, RoundedCornerShape(6.dp)) else Modifier)
+                    .pointerInput(Unit) {
+                        var dx = 0f
+                        detectHorizontalDragGestures(
+                            onDragStart = { dx = 0f },
+                            onDragEnd = { if (dx < -SWIPE_PX) vm.next() else if (dx > SWIPE_PX) vm.previous() },
+                        ) { change, amount ->
+                            change.consume()
+                            dx += amount
+                        }
+                    },
                 flipped = state.flipped,
                 lastMove = lastMove,
-                animate = animate,
+                animate = state.animate,
                 arrows = arrows,
                 badge = badge,
                 showCoordinates = state.settings.showCoordinates,
                 description = buildString {
                     append(if (position.sideToMove == Side.WHITE) "White to move" else "Black to move")
-                    if (move != null) append(". Last move ${move.san}, ${move.moveClass.label}")
+                    when {
+                        line != null -> append(". ${line.title}, move ${line.index} of ${line.moves.size}")
+                        move != null -> append(". Last move ${move.san}, ${move.moveClass.label}")
+                    }
                 },
             )
         }
-        PlayerStrip(data, topSide.opposite, ply, Modifier.padding(start = if (data.analysed) 20.dp else 0.dp))
+        PlayerStrip(data, topSide.opposite, ply, position, line == null, Modifier.padding(start = barWidth))
     }
 }
 
+private const val SWIPE_PX = 120f
+
 @Composable
-private fun PlayerStrip(data: ReviewData, side: Side, ply: Int, modifier: Modifier = Modifier) {
+private fun PlayerStrip(data: ReviewData, side: Side, ply: Int, position: Position, showClock: Boolean, modifier: Modifier = Modifier) {
     val g = data.game
     val name = if (side == Side.WHITE) g.white else g.black
     val rating = if (side == Side.WHITE) g.whiteRating else g.blackRating
     val accuracy = if (side == Side.WHITE) g.whiteAccuracy else g.blackAccuracy
     val line = data.line
     // Clock after this side's most recent move up to the selected ply.
-    val clock = (ply downTo 1).firstOrNull { p -> line?.moverOf(p) == side }?.let { data.clocks.getOrNull(it - 1) }
-    val position = line?.positions?.getOrNull(ply)
-    val diff = position?.let { it.material(side) - it.material(side.opposite) } ?: 0
-    Row(modifier.height(38.dp), verticalAlignment = Alignment.CenterVertically) {
+    val clock = if (!showClock) null else (ply downTo 1).firstOrNull { p -> line?.moverOf(p) == side }?.let { data.clocks.getOrNull(it - 1) }
+    val diff = position.material(side) - position.material(side.opposite)
+    Row(modifier.height(36.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(
-            Modifier.size(22.dp).clip(RoundedCornerShape(5.dp))
+            Modifier.size(20.dp).clip(RoundedCornerShape(5.dp))
                 .background(if (side == Side.WHITE) AppTheme.colors.evalWhite else AppTheme.colors.evalBlack)
                 .border(1.dp, AppTheme.colors.border, RoundedCornerShape(5.dp)),
         )
@@ -362,27 +398,38 @@ private fun PlayerStrip(data: ReviewData, side: Side, ply: Int, modifier: Modifi
 }
 
 @Composable
-private fun Panel(state: ReviewUiState, data: ReviewData, vm: ReviewViewModel, onTick: () -> Unit) {
+private fun Panel(state: ReviewUiState, data: ReviewData, vm: ReviewViewModel, onOpenQueue: () -> Unit, onTick: () -> Unit) {
     val ply = state.ply
-    Column(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    val line = state.line
+    Column(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (line != null) {
+            LineCard(data, line, onJump = { i -> onTick(); vm.jumpInLine(i) })
+            data.move(line.ply)?.let { m -> LineContext(data, m, line) }
+            return@Column
+        }
+        MoveStrip(data, ply) { onTick(); vm.select(it) }
+        when {
+            !data.analysed -> PendingCard(data, ply, state.queueRank, vm::analyseNext, onOpenQueue)
+            ply == 0 -> StartCard(data, onFirstMistake = { onTick(); vm.nextMistake() }, onStart = { onTick(); vm.next() })
+            else -> data.move(ply)?.let { m -> CoachCard(data, m) { kind, alt -> onTick(); vm.showLine(kind, alt) } }
+        }
         if (data.analysed && data.winChances.size == data.plyCount + 1) {
             EvalGraph(
                 winChances = data.winChances,
                 markers = data.moves.filter { it.moveClass.isSerious }.associate { it.ply to it.moveClass },
                 selectedPly = ply,
                 onSelect = { p -> if (p != state.ply) { onTick(); vm.select(p) } },
-                height = 52.dp,
+                height = 48.dp,
             )
         }
-        MoveStrip(data, ply) { onTick(); vm.select(it) }
-        val variation = state.variation
-        when {
-            variation != null -> VariationCard(variation, onExit = vm::exitVariation)
-            !data.analysed -> PendingCard(data, ply, vm::analyseNow)
-            ply == 0 -> StartCard(data)
-            else -> data.move(ply)?.let { CoachCard(data, it, vm) }
-        }
     }
+}
+
+private fun moveLabel(data: ReviewData, ply: Int): String {
+    val line = data.line ?: return ""
+    val n = line.moveNumberOf(ply)
+    val san = line.sans[ply - 1]
+    return if (line.moverOf(ply) == Side.WHITE) "$n. $san" else "$n… $san"
 }
 
 @Composable
@@ -391,14 +438,11 @@ private fun MoveStrip(data: ReviewData, ply: Int, onSelect: (Int) -> Unit) {
     val listState = rememberLazyListState()
     LaunchedEffect(ply) { listState.animateScrollToItem((ply - 2).coerceAtLeast(0)) }
     LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(4.dp), contentPadding = PaddingValues(horizontal = 2.dp)) {
-        item {
-            MoveChip("Start", null, selected = ply == 0) { onSelect(0) }
-        }
+        item { MoveChip("Start", null, selected = ply == 0) { onSelect(0) } }
         itemsIndexed(line.sans) { i, san ->
             val p = i + 1
-            val mover = line.moverOf(p)
             val number = line.moveNumberOf(p)
-            val label = if (mover == Side.WHITE) "$number. $san" else if (p == 1) "$number… $san" else san
+            val label = if (line.moverOf(p) == Side.WHITE) "$number. $san" else if (p == 1) "$number… $san" else san
             MoveChip(label, data.move(p)?.moveClass, selected = p == ply) { onSelect(p) }
         }
     }
@@ -408,21 +452,21 @@ private fun MoveStrip(data: ReviewData, ply: Int, onSelect: (Int) -> Unit) {
 private fun MoveChip(label: String, c: MoveClass?, selected: Boolean, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Row(
-        Modifier.heightIn(min = 36.dp).clip(RoundedCornerShape(8.dp))
+        Modifier.heightIn(min = 40.dp).clip(RoundedCornerShape(10.dp))
             .background(if (selected) scheme.primaryContainer else Color.Transparent)
-            .clickable(onClick = onClick).padding(horizontal = 9.dp),
+            .clickable(onClick = onClick).padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (c != null && c.isError) {
-            Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(classColor(c)))
-            Spacer(Modifier.width(5.dp))
-        }
         Text(
             label,
             style = MaterialTheme.typography.labelLarge,
             color = if (selected) scheme.onPrimaryContainer else scheme.onSurface,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
         )
+        if (c != null && (c.isError || c == MoveClass.BEST && selected)) {
+            Spacer(Modifier.width(4.dp))
+            Text(c.symbol, style = MaterialTheme.typography.labelMedium, color = classColor(c), fontWeight = FontWeight.Bold)
+        }
     }
 }
 
@@ -440,22 +484,20 @@ private fun article(c: MoveClass) = when (c) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun CoachCard(data: ReviewData, m: ReviewMove, vm: ReviewViewModel) {
+private fun CoachCard(data: ReviewData, m: ReviewMove, onLine: (LineKind, Int) -> Unit) {
     val line = data.line ?: return
-    val color = classColor(m.moveClass)
     AppCard(Modifier.fillMaxWidth(), contentPadding = PaddingValues(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            ClassBadge(m.moveClass, size = 26.dp)
+            ClassBadge(m.moveClass, size = 28.dp)
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
+                Text("${m.san} is ${article(m.moveClass)}", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "${m.san} is ${article(m.moveClass)}",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    "Move ${line.moveNumberOf(m.ply)} · ${if (m.side == Side.WHITE) "White" else "Black"}" +
-                        (m.timeSpentMillis?.let { " · took ${Format.seconds(it)}" } ?: ""),
+                    listOfNotNull(
+                        moveLabel(data, m.ply),
+                        if (m.side == Side.WHITE) "White" else "Black",
+                        m.timeSpentMillis?.takeIf { it > 0 }?.let { "took ${Format.seconds(it)}" },
+                    ).joinToString(" · "),
                     style = MaterialTheme.typography.labelSmall,
                     color = AppTheme.colors.textMuted,
                 )
@@ -465,31 +507,64 @@ private fun CoachCard(data: ReviewData, m: ReviewMove, vm: ReviewViewModel) {
                 Text("was ${m.scoreBefore.display()}", style = MaterialTheme.typography.labelSmall.numeric, color = AppTheme.colors.textMuted)
             }
         }
-        Box(Modifier.padding(top = 10.dp).fillMaxWidth().height(2.dp).clip(RoundedCornerShape(1.dp)).background(color.copy(alpha = 0.35f)))
-        Spacer(Modifier.height(10.dp))
-        Text(m.explanation, style = MaterialTheme.typography.bodyMedium)
-
-        val showBest = m.bestSan != null && m.moveClass != MoveClass.BEST && m.moveClass != MoveClass.BOOK
-        if (showBest || m.bestLine.size > 1) {
-            Spacer(Modifier.height(12.dp))
-            LabeledDivider("Engine lines")
-            Spacer(Modifier.height(8.dp))
-            if (m.bestLine.isNotEmpty()) {
-                LineRow(
-                    title = if (showBest) "Best · ${m.bestSan}" else "Best line",
-                    score = m.scoreBefore,
-                    text = formatLine(line.positions[m.ply - 1], m.bestLine),
-                    accent = MaterialTheme.colorScheme.primary,
-                ) { vm.playLine("Best line", m.bestLine, fromBefore = true) }
+        if (m.hasBetter) {
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AppIcon(R.drawable.ic_star_filled, null, tint = classColor(MoveClass.BEST), size = 18.dp)
+                Spacer(Modifier.width(6.dp))
+                Text("Best was ${m.bestSan}", style = MaterialTheme.typography.titleSmall, color = classColor(MoveClass.BEST))
             }
-            m.alternatives.forEachIndexed { i, alt ->
-                LineRow("Alternative ${i + 1}", alt.score, formatLine(line.positions[m.ply - 1], alt.san), AppTheme.colors.textMuted) {
-                    vm.playLine("Alternative ${i + 1}", alt.san, fromBefore = true)
+        }
+        val text = coachText(m.explanation)
+        if (text.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            Text(text, style = MaterialTheme.typography.bodyMedium)
+        }
+        val canBest = m.hasBetter && m.bestLine.isNotEmpty()
+        if (canBest || m.replyLine.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (canBest) {
+                    Button(onClick = { onLine(LineKind.BEST, 0) }, contentPadding = ButtonDefaults.ButtonWithIconContentPadding) {
+                        AppIcon(R.drawable.ic_play_arrow, null, size = 18.dp, tint = MaterialTheme.colorScheme.onPrimary)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Show best line")
+                    }
+                }
+                if (m.replyLine.isNotEmpty()) {
+                    val label = if (m.hasBetter) "After ${m.san}" else "Show follow-up"
+                    if (canBest) {
+                        OutlinedButton(onClick = { onLine(LineKind.PLAYED, 0) }, contentPadding = ButtonDefaults.ButtonWithIconContentPadding) {
+                            AppIcon(R.drawable.ic_play_arrow, null, size = 18.dp, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(6.dp))
+                            Text(label)
+                        }
+                    } else {
+                        FilledTonalButton(onClick = { onLine(LineKind.PLAYED, 0) }, contentPadding = ButtonDefaults.ButtonWithIconContentPadding) {
+                            AppIcon(R.drawable.ic_play_arrow, null, size = 18.dp, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                            Spacer(Modifier.width(6.dp))
+                            Text(label)
+                        }
+                    }
                 }
             }
-            if (m.replyLine.isNotEmpty()) {
-                LineRow("After ${m.san}", m.scoreAfter, formatLine(line.positions[m.ply], m.replyLine), AppTheme.colors.textMuted) {
-                    vm.playLine("After ${m.san}", m.replyLine, fromBefore = false)
+        }
+        if (m.alternatives.isNotEmpty()) {
+            Spacer(Modifier.height(10.dp))
+            Text("Other options", style = MaterialTheme.typography.labelMedium, color = AppTheme.colors.textMuted)
+            Spacer(Modifier.height(4.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                m.alternatives.forEachIndexed { i, alt ->
+                    val first = alt.san.firstOrNull() ?: return@forEachIndexed
+                    Row(
+                        Modifier.heightIn(min = 36.dp).clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.subtle)
+                            .clickable(onClickLabel = "Play this line") { onLine(LineKind.ALTERNATIVE, i) }.padding(horizontal = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(first, style = MaterialTheme.typography.labelLarge)
+                        Spacer(Modifier.width(6.dp))
+                        Text(alt.score.display(), style = MaterialTheme.typography.labelMedium.numeric, color = AppTheme.colors.textMuted)
+                    }
                 }
             }
         }
@@ -499,52 +574,111 @@ private fun CoachCard(data: ReviewData, m: ReviewMove, vm: ReviewViewModel) {
                 m.themes.forEach { Pill(it.label) }
             }
         }
-    }
-}
-
-@Composable
-private fun LineRow(title: String, score: Score, text: String, accent: Color, onPlay: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(onClick = onPlay).padding(vertical = 6.dp, horizontal = 4.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Text(
-            score.display(),
-            style = MaterialTheme.typography.labelLarge.numeric,
-            modifier = Modifier.width(52.dp).clip(RoundedCornerShape(6.dp)).background(AppTheme.colors.subtle).padding(vertical = 3.dp),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-        )
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.labelMedium, color = accent)
-            Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        if (line.plyCount == m.ply) {
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "Final move${data.game.termination?.let { " · game ended by $it" } ?: ""}",
+                style = MaterialTheme.typography.labelSmall,
+                color = AppTheme.colors.textMuted,
+            )
         }
-        AppIcon(R.drawable.ic_play_arrow, "Play line", tint = MaterialTheme.colorScheme.onSurfaceVariant, size = 20.dp)
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun VariationCard(v: Variation, onExit: () -> Unit) {
-    AppCard(Modifier.fillMaxWidth(), contentPadding = PaddingValues(14.dp), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)) {
+private fun LineCard(data: ReviewData, l: LinePlayback, onJump: (Int) -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    AppCard(Modifier.fillMaxWidth(), contentPadding = PaddingValues(14.dp), color = scheme.primaryContainer.copy(alpha = 0.35f)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Exploring: ${v.title}", style = MaterialTheme.typography.titleSmall)
-                Text("Move ${v.index} of ${v.moves.size} · use the arrows to step", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textMuted)
+                Text(l.title, style = MaterialTheme.typography.titleMedium)
+                val move = moveLabel(data, l.ply)
+                Text(
+                    when (l.kind) {
+                        LineKind.PLAYED -> "How the game goes on after $move"
+                        else -> "Instead of $move"
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = AppTheme.colors.textMuted,
+                )
             }
-            OutlinedButton(onClick = onExit) { Text("Back to game") }
+            l.score?.let { Text(it.display(), style = MaterialTheme.typography.titleMedium.numeric) }
         }
         Spacer(Modifier.height(10.dp))
+        val labels = remember(l.start, l.sans) { numbered(l.start, l.sans) }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            l.sans.forEachIndexed { i, san ->
+                val label = labels[i]
+                val shown = i < l.index
+                val current = i == l.index - 1
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = if (current) FontWeight.SemiBold else FontWeight.Medium,
+                    color = when {
+                        current -> scheme.onPrimary
+                        shown -> scheme.onSurface
+                        else -> AppTheme.colors.textMuted
+                    },
+                    modifier = Modifier.heightIn(min = 36.dp).clip(RoundedCornerShape(8.dp))
+                        .background(if (current) scheme.primary else Color.Transparent)
+                        .clickable(onClickLabel = "Show the position after $san") { onJump(i + 1) }
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
         Text(
-            formatLine(v.start, v.sans.take(v.index)) + if (v.index < v.sans.size) "  …" else "",
-            style = MaterialTheme.typography.bodyMedium,
+            when {
+                l.finished -> "End of the engine's line · evaluation ${l.score?.display() ?: "–"}"
+                l.playing -> "Playing the line… move ${l.index} of ${l.moves.size}"
+                else -> "Paused · move ${l.index} of ${l.moves.size}"
+            },
+            style = MaterialTheme.typography.labelMedium,
+            color = AppTheme.colors.textMuted,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        )
+    }
+}
+
+/** SAN moves with move numbers where they belong ("12. Nf3", "12… e5" for a line starting with Black). */
+private fun numbered(start: Position, sans: List<String>): List<String> {
+    var number = start.fullmoveNumber
+    var white = start.sideToMove == Side.WHITE
+    return sans.mapIndexed { i, san ->
+        val label = when {
+            white -> "$number. $san"
+            i == 0 -> "$number… $san"
+            else -> san
+        }
+        if (!white) number++
+        white = !white
+        label
+    }
+}
+
+/** Keeps the verdict in view while a line plays. */
+@Composable
+private fun LineContext(data: ReviewData, m: ReviewMove, l: LinePlayback) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        ClassBadge(m.moveClass, size = 20.dp)
+        Spacer(Modifier.width(8.dp))
+        Text(
+            buildString {
+                append("${moveLabel(data, m.ply)} is ${article(m.moveClass)}")
+                if (m.hasBetter && l.kind != LineKind.PLAYED) append(" · best was ${m.bestSan}")
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
 
 @Composable
-private fun StartCard(data: ReviewData) {
+private fun StartCard(data: ReviewData, onFirstMistake: () -> Unit, onStart: () -> Unit) {
     val g = data.game
-    val user = data.userSide
+    val errors = data.userErrors
     AppCard(Modifier.fillMaxWidth(), contentPadding = PaddingValues(14.dp)) {
         Text(g.openingName ?: "Start position", style = MaterialTheme.typography.titleMedium)
         Text(
@@ -552,38 +686,43 @@ private fun StartCard(data: ReviewData) {
             style = MaterialTheme.typography.labelSmall,
             color = AppTheme.colors.textMuted,
         )
+        Spacer(Modifier.height(10.dp))
+        Text(errorSummary(data, hint = errors.isNotEmpty()), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            SideAccuracy(g.white, g.whiteAccuracy, user == Side.WHITE)
-            SideAccuracy(g.black, g.blackAccuracy, user == Side.BLACK)
-        }
-        Spacer(Modifier.height(12.dp))
-        val userCounts = if (user == Side.BLACK) data.blackCounts else data.whiteCounts
-        val serious = listOf(MoveClass.MISS, MoveClass.MISSED_MATE, MoveClass.BLUNDER, MoveClass.MISTAKE, MoveClass.INACCURACY)
-            .filter { (userCounts[it] ?: 0) > 0 }
-        Text(
-            if (serious.isEmpty()) "No errors from you in this game — step through to see the best moves."
-            else "Step through the game, or tap a marker on the graph to jump to a key moment.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun SideAccuracy(name: String, accuracy: Double?, isUser: Boolean) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        AccuracyRing(accuracy, size = 48.dp, stroke = 5.dp, color = if (isUser) MaterialTheme.colorScheme.primary else AppTheme.colors.draw)
-        Spacer(Modifier.width(8.dp))
-        Column {
-            Text(name, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(96.dp))
-            Text(if (isUser) "You" else "Opponent", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textMuted)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (errors.isNotEmpty()) {
+                Button(onClick = onFirstMistake) { Text(if (data.userSide == null) "First mistake" else "Your first mistake") }
+                OutlinedButton(onClick = onStart) { Text("Move 1") }
+            } else {
+                Button(onClick = onStart) { Text("Step through the game") }
+            }
         }
     }
 }
 
+private fun errorSummary(data: ReviewData, hint: Boolean = false): String {
+    val errors = data.userErrors
+    val who = if (data.userSide == null) "This game has" else "You made"
+    if (errors.isEmpty()) return if (data.userSide == null) "No inaccuracies or worse in this game." else "No inaccuracies or worse from you in this game."
+    val parts = listOf(MoveClass.INACCURACY, MoveClass.MISTAKE, MoveClass.BLUNDER, MoveClass.MISS, MoveClass.MISSED_MATE).mapNotNull { c ->
+        val n = errors.count { it.moveClass == c }
+        if (n == 0) null else countOf(c, n)
+    }
+    val list = if (parts.size == 1) parts[0] else parts.dropLast(1).joinToString(", ") + " and " + parts.last()
+    return "$who $list." + if (hint) " Mistake, below, jumps between them." else ""
+}
+
+private fun countOf(c: MoveClass, n: Int): String {
+    val word = c.label.lowercase()
+    return "$n " + when {
+        n == 1 -> word
+        word.endsWith("y") -> word.dropLast(1) + "ies"
+        else -> word + "s"
+    }
+}
+
 @Composable
-private fun PendingCard(data: ReviewData, ply: Int, onAnalyse: () -> Unit) {
+private fun PendingCard(data: ReviewData, ply: Int, queueRank: Int?, onAnalyse: () -> Unit, onOpenQueue: () -> Unit) {
     val g = data.game
     AppCard(Modifier.fillMaxWidth(), contentPadding = PaddingValues(14.dp)) {
         when (g.status) {
@@ -601,10 +740,25 @@ private fun PendingCard(data: ReviewData, ply: Int, onAnalyse: () -> Unit) {
             }
             "skipped" -> Text(g.statusMessage ?: "This game can't be analysed.", style = MaterialTheme.typography.bodyMedium)
             else -> {
-                Text("Waiting in the review queue", style = MaterialTheme.typography.titleSmall)
-                Text("Games are analysed automatically, newest first. You can move this one to the front.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    when (queueRank) {
+                        null -> "Waiting to be analysed"
+                        1 -> "Next in your queue"
+                        else -> "#$queueRank in your queue"
+                    },
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Text(
+                    if (queueRank == null) "Games are analysed automatically, newest first. Move this one to the front to see its review sooner."
+                    else "Games you pick are analysed before the rest.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Spacer(Modifier.height(10.dp))
-                Button(onClick = onAnalyse) { Text("Analyse next") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (queueRank != 1) Button(onClick = onAnalyse) { Text("Analyse next") }
+                    OutlinedButton(onClick = onOpenQueue) { Text("View queue") }
+                }
             }
         }
         if (ply > 0) {
@@ -615,39 +769,72 @@ private fun PendingCard(data: ReviewData, ply: Int, onAnalyse: () -> Unit) {
 }
 
 @Composable
-private fun Controls(
+private fun NavBar(
     state: ReviewUiState,
-    onSummary: () -> Unit,
-    onMoves: () -> Unit,
+    hasMistakes: Boolean,
     onFirst: () -> Unit,
     onPrevious: () -> Unit,
-    onPlay: () -> Unit,
     onNext: () -> Unit,
     onLast: () -> Unit,
+    onMistake: () -> Unit,
+    onExitLine: () -> Unit,
+    onToggleLine: () -> Unit,
+    onReplayLine: () -> Unit,
 ) {
     Surface(color = MaterialTheme.colorScheme.surface) {
         Column(Modifier.navigationBarsPadding()) {
             HorizontalDivider(color = AppTheme.colors.border)
-            Row(Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onSummary) {
-                    AppIcon(R.drawable.ic_insights, null, size = 18.dp, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(4.dp))
-                    Text("Summary")
+            Row(Modifier.fillMaxWidth().height(68.dp).padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                val l = state.line
+                if (l == null) {
+                    NavItem(R.drawable.ic_first_page, "First", "First move", onFirst)
+                    NavItem(R.drawable.ic_chevron_left, "Back", "Previous move", onPrevious)
+                    NavItem(R.drawable.ic_chevron_right, "Next", "Next move", onNext, primary = true)
+                    NavItem(R.drawable.ic_last_page, "Last", "Last move", onLast)
+                    NavItem(R.drawable.ic_skip_next, "Mistake", "Next mistake", onMistake, enabled = hasMistakes)
+                } else {
+                    NavItem(R.drawable.ic_close, "Game", "Back to game", onExitLine)
+                    NavItem(R.drawable.ic_chevron_left, "Back", "Previous move", onPrevious)
+                    NavItem(
+                        if (l.playing) R.drawable.ic_pause else R.drawable.ic_play_arrow,
+                        if (l.playing) "Pause" else "Play",
+                        if (l.playing) "Pause line" else "Play line",
+                        onToggleLine,
+                        primary = true,
+                    )
+                    NavItem(R.drawable.ic_chevron_right, "Next", "Next move", onNext)
+                    NavItem(R.drawable.ic_replay, "Replay", "Replay line", onReplayLine)
                 }
-                Spacer(Modifier.weight(1f))
-                IconButton(onClick = onFirst) { AppIcon(R.drawable.ic_first_page, "First move") }
-                IconButton(onClick = onPrevious) { AppIcon(R.drawable.ic_chevron_left, "Previous move", size = 30.dp) }
-                IconButton(onClick = onPlay) { AppIcon(if (state.playing) R.drawable.ic_pause else R.drawable.ic_play_arrow, if (state.playing) "Pause replay" else "Replay game") }
-                IconButton(onClick = onNext) { AppIcon(R.drawable.ic_chevron_right, "Next move", size = 30.dp) }
-                IconButton(onClick = onLast) { AppIcon(R.drawable.ic_last_page, "Last move") }
-                Spacer(Modifier.weight(1f))
-                IconButton(onClick = onMoves) { AppIcon(R.drawable.ic_menu_book, "All moves") }
             }
         }
     }
 }
 
-// --------------------------------------------------------------------------- sheets
+@Composable
+private fun RowScope.NavItem(icon: Int, label: String, description: String, onClick: () -> Unit, primary: Boolean = false, enabled: Boolean = true) {
+    val scheme = MaterialTheme.colorScheme
+    val tint = when {
+        !enabled -> scheme.onSurface.copy(alpha = 0.35f)
+        primary -> scheme.onPrimaryContainer
+        else -> scheme.onSurface
+    }
+    Column(
+        Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(14.dp))
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .semantics(mergeDescendants = true) { contentDescription = description },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Box(
+            Modifier.width(56.dp).height(30.dp).clip(RoundedCornerShape(15.dp)).background(if (primary && enabled) scheme.primaryContainer else Color.Transparent),
+            contentAlignment = Alignment.Center,
+        ) { AppIcon(icon, null, tint = tint, size = 24.dp) }
+        Spacer(Modifier.height(2.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = if (enabled) scheme.onSurfaceVariant else tint)
+    }
+}
+
+// --------------------------------------------------------------------------- report tab
 
 private val CLASS_ORDER = listOf(
     MoveClass.BEST, MoveClass.EXCELLENT, MoveClass.GOOD, MoveClass.BOOK, MoveClass.INACCURACY,
@@ -655,120 +842,144 @@ private val CLASS_ORDER = listOf(
 )
 
 @Composable
-private fun SummarySheet(data: ReviewData, onJump: (Int) -> Unit, onAnalyse: () -> Unit) {
+private fun ReportTab(data: ReviewData, onOpenMoves: (Int) -> Unit) {
     val g = data.game
-    val review = data.review
-    LazyColumn(contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        item {
-            Text("Game summary", style = MaterialTheme.typography.headlineSmall)
-            Text(
-                "${g.white} vs ${g.black} · ${g.result.replace("1/2-1/2", "½-½")}${g.termination?.let { " by $it" } ?: ""}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (review == null) {
+    val review = data.review ?: return
+    val errors = data.userErrors
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        LazyColumn(
+            Modifier.widthIn(max = 720.dp).fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             item {
                 AppCard(Modifier.fillMaxWidth()) {
-                    Text("This game hasn't been analysed yet.", style = MaterialTheme.typography.bodyMedium)
-                    Spacer(Modifier.height(8.dp))
-                    Button(onClick = onAnalyse) { Text("Analyse next") }
+                    Text(
+                        "${g.result.replace("1/2-1/2", "½-½")}${g.termination?.let { " · $it" } ?: ""} · ${Format.timeClass(g.timeClass)} · ${Format.shortDate(g.endTime)}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = AppTheme.colors.textMuted,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+                        BigAccuracy(g.white, review.whiteAccuracy, data.userSide == Side.WHITE)
+                        BigAccuracy(g.black, review.blackAccuracy, data.userSide == Side.BLACK)
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text(errorSummary(data), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(12.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
+                        if (errors.isNotEmpty()) {
+                            Button(onClick = { onOpenMoves(errors.first().ply) }) { Text(if (data.userSide == null) "Review mistakes" else "Review my mistakes") }
+                            OutlinedButton(onClick = { onOpenMoves(0) }) { Text("From move 1") }
+                        } else {
+                            Button(onClick = { onOpenMoves(0) }) { Text("Step through the game") }
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "Estimated accuracy (AfterCheck, Lichess-style method) — not Chess.com's official score.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AppTheme.colors.textMuted,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                    )
                 }
             }
-            return@LazyColumn
-        }
-        item {
-            AppCard(Modifier.fillMaxWidth()) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-                    BigAccuracy(g.white, review.whiteAccuracy, data.userSide == Side.WHITE)
-                    BigAccuracy(g.black, review.blackAccuracy, data.userSide == Side.BLACK)
-                }
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "Estimated accuracy (AfterCheck, Lichess-style method) — not Chess.com's official score.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = AppTheme.colors.textMuted,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                )
-            }
-        }
-        item {
-            AppCard(Modifier.fillMaxWidth(), contentPadding = PaddingValues(vertical = 8.dp, horizontal = 12.dp)) {
-                Row(Modifier.fillMaxWidth().padding(vertical = 6.dp, horizontal = 4.dp)) {
-                    Text(g.white, style = MaterialTheme.typography.labelMedium, color = AppTheme.colors.textMuted, modifier = Modifier.width(72.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Spacer(Modifier.weight(1f))
-                    Text(g.black, style = MaterialTheme.typography.labelMedium, color = AppTheme.colors.textMuted, modifier = Modifier.width(72.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.End)
-                }
-                CLASS_ORDER.forEach { c ->
-                    val w = data.whiteCounts[c] ?: 0
-                    val b = data.blackCounts[c] ?: 0
-                    Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable(enabled = w + b > 0) {
-                            data.moves.firstOrNull { it.moveClass == c && (data.userSide == null || it.side == data.userSide) }
-                                ?.let { onJump(it.ply) }
-                                ?: data.moves.firstOrNull { it.moveClass == c }?.let { onJump(it.ply) }
-                        }.heightIn(min = 40.dp).padding(horizontal = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text("$w", style = MaterialTheme.typography.titleSmall.numeric, modifier = Modifier.width(40.dp))
-                        Spacer(Modifier.weight(1f))
-                        ClassBadge(c, size = 20.dp)
-                        Spacer(Modifier.width(8.dp))
-                        Text(c.label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(150.dp))
-                        Spacer(Modifier.weight(1f))
-                        Text("$b", style = MaterialTheme.typography.titleSmall.numeric, modifier = Modifier.width(40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+            if (data.winChances.size == data.plyCount + 1) {
+                item {
+                    AppCard(Modifier.fillMaxWidth(), contentPadding = PaddingValues(12.dp)) {
+                        Text("Evaluation", style = MaterialTheme.typography.titleSmall)
+                        Text("Tap the graph to open that move", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textMuted)
+                        Spacer(Modifier.height(8.dp))
+                        EvalGraph(
+                            winChances = data.winChances,
+                            markers = data.moves.filter { it.moveClass.isSerious }.associate { it.ply to it.moveClass },
+                            selectedPly = -1,
+                            onSelect = onOpenMoves,
+                            height = 88.dp,
+                            scrub = false,
+                        )
                     }
                 }
             }
-        }
-        val tps = data.turningPoints
-        if (tps.isNotEmpty()) {
-            item { Text("Key moments", style = MaterialTheme.typography.titleMedium) }
-            items(tps) { p ->
-                val m = data.move(p) ?: return@items
-                KeyMomentRow(data, m) { onJump(p) }
-            }
-        }
-        item {
-            AppCard(Modifier.fillMaxWidth()) {
-                review.biggestSwingPly?.let { p -> data.move(p)?.let { m -> Fact("Biggest swing", "${moveLabel(data, p)} · ${m.scoreBefore.display()} → ${m.scoreAfter.display()}") { onJump(p) } } }
-                review.strongestMovePly?.let { p -> Fact("Strongest move", moveLabel(data, p)) { onJump(p) } }
-                val critical = data.moves.filter { it.moveClass.isCritical }
-                Fact(
-                    "Critical mistakes",
-                    if (critical.isEmpty()) "None" else critical.joinToString(", ") { moveLabel(data, it.ply) },
-                    critical.firstOrNull()?.let { first -> { onJump(first.ply) } },
-                )
-                Fact("Final evaluation", Score.parse(review.finalScore)?.display() ?: "–", null)
-                Fact("Opening", listOfNotNull(review.eco ?: g.eco, review.openingName ?: g.openingName).joinToString(" · ").ifEmpty { "Unknown" }, null)
-                if (review.bookPlies > 0) Fact("Book moves", "${review.bookPlies} plies", null)
-                Fact("Length", "${(data.plyCount + 1) / 2} moves · ${data.plyCount} plies", null)
-                Fact("Time control", "${Format.timeClass(g.timeClass)} · ${Format.timeControl(g.timeControl)}${if (g.rated) " · rated" else ""}", null)
-            }
-        }
-        val recs = data.recommendations
-        if (recs.isNotEmpty()) {
-            item { Text("What to work on", style = MaterialTheme.typography.titleMedium) }
-            items(recs) { r ->
-                AppCard(Modifier.fillMaxWidth(), contentPadding = PaddingValues(14.dp)) {
-                    Row(verticalAlignment = Alignment.Top) {
-                        AppIcon(R.drawable.ic_lightbulb, null, tint = MaterialTheme.colorScheme.tertiary, size = 20.dp)
-                        Spacer(Modifier.width(10.dp))
-                        Column {
-                            Text(r.theme.label, style = MaterialTheme.typography.titleSmall)
-                            Text(r.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            item {
+                AppCard(Modifier.fillMaxWidth(), contentPadding = PaddingValues(vertical = 8.dp, horizontal = 12.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp, horizontal = 4.dp)) {
+                        Text(g.white, style = MaterialTheme.typography.labelMedium, color = AppTheme.colors.textMuted, modifier = Modifier.width(72.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Spacer(Modifier.weight(1f))
+                        Text(g.black, style = MaterialTheme.typography.labelMedium, color = AppTheme.colors.textMuted, modifier = Modifier.width(72.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End)
+                    }
+                    CLASS_ORDER.forEach { c ->
+                        val w = data.whiteCounts[c] ?: 0
+                        val b = data.blackCounts[c] ?: 0
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable(enabled = w + b > 0) {
+                                (data.moves.firstOrNull { it.moveClass == c && (data.userSide == null || it.side == data.userSide) }
+                                    ?: data.moves.firstOrNull { it.moveClass == c })?.let { onOpenMoves(it.ply) }
+                            }.heightIn(min = 40.dp).padding(horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("$w", style = MaterialTheme.typography.titleSmall.numeric, modifier = Modifier.width(40.dp))
+                            Spacer(Modifier.weight(1f))
+                            ClassBadge(c, size = 20.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text(c.label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(150.dp))
+                            Spacer(Modifier.weight(1f))
+                            Text("$b", style = MaterialTheme.typography.titleSmall.numeric, modifier = Modifier.width(40.dp), textAlign = TextAlign.End)
                         }
                     }
                 }
             }
-        }
-        item {
-            Text(
-                "${review.engineName} · ${describeKey(review.analysisKey)} · analysed in ${Format.duration(review.durationMillis.toDouble())}",
-                style = MaterialTheme.typography.labelSmall,
-                color = AppTheme.colors.textMuted,
-            )
+            val tps = data.turningPoints
+            if (tps.isNotEmpty()) {
+                item { Text("Key moments", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp)) }
+                items(tps) { p ->
+                    val m = data.move(p) ?: return@items
+                    KeyMomentRow(data, m) { onOpenMoves(p) }
+                }
+            }
+            val recs = data.recommendations
+            if (recs.isNotEmpty()) {
+                item { Text("What to work on", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp)) }
+                items(recs) { r ->
+                    AppCard(Modifier.fillMaxWidth(), contentPadding = PaddingValues(14.dp)) {
+                        Row(verticalAlignment = Alignment.Top) {
+                            AppIcon(R.drawable.ic_lightbulb, null, tint = MaterialTheme.colorScheme.tertiary, size = 20.dp)
+                            Spacer(Modifier.width(10.dp))
+                            Column {
+                                Text(r.theme.label, style = MaterialTheme.typography.titleSmall)
+                                Text(r.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
+            item {
+                AppCard(Modifier.fillMaxWidth()) {
+                    review.biggestSwingPly?.let { p -> data.move(p)?.let { m -> Fact("Biggest swing", "${moveLabel(data, p)} · ${m.scoreBefore.display()} → ${m.scoreAfter.display()}") { onOpenMoves(p) } } }
+                    review.strongestMovePly?.let { p -> Fact("Strongest move", moveLabel(data, p)) { onOpenMoves(p) } }
+                    val critical = data.moves.filter { it.moveClass.isCritical }
+                    Fact(
+                        "Critical mistakes",
+                        if (critical.isEmpty()) "None" else critical.joinToString(", ") { moveLabel(data, it.ply) },
+                        critical.firstOrNull()?.let { first -> { onOpenMoves(first.ply) } },
+                    )
+                    Fact("Final evaluation", Score.parse(review.finalScore)?.display() ?: "–", null)
+                    Fact("Opening", listOfNotNull(review.eco ?: g.eco, review.openingName ?: g.openingName).joinToString(" · ").ifEmpty { "Unknown" }, null)
+                    if (review.bookPlies > 0) Fact("Book moves", "${review.bookPlies} plies", null)
+                    Fact("Length", "${(data.plyCount + 1) / 2} moves · ${data.plyCount} plies", null)
+                    Fact("Time control", "${Format.timeClass(g.timeClass)} · ${Format.timeControl(g.timeControl)}${if (g.rated) " · rated" else ""}", null)
+                }
+            }
+            item {
+                Text(
+                    "${review.engineName} · ${describeKey(review.analysisKey)} · analysed in ${Format.duration(review.durationMillis.toDouble())}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = AppTheme.colors.textMuted,
+                )
+            }
         }
     }
 }
@@ -781,13 +992,6 @@ private fun describeKey(key: String): String {
     return listOfNotNull(depth?.let { "depth $it" }, time?.let { "≤ $it per move" }, lines?.let { "$it line${if (it == "1") "" else "s"}" }).joinToString(", ")
 }
 
-private fun moveLabel(data: ReviewData, ply: Int): String {
-    val line = data.line ?: return ""
-    val n = line.moveNumberOf(ply)
-    val san = line.sans[ply - 1]
-    return if (line.moverOf(ply) == Side.WHITE) "$n. $san" else "$n… $san"
-}
-
 @Composable
 private fun KeyMomentRow(data: ReviewData, m: ReviewMove, onClick: () -> Unit) {
     AppCard(Modifier.fillMaxWidth(), onClick = onClick, contentPadding = PaddingValues(12.dp)) {
@@ -796,7 +1000,7 @@ private fun KeyMomentRow(data: ReviewData, m: ReviewMove, onClick: () -> Unit) {
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text("${moveLabel(data, m.ply)} · ${m.moveClass.label}", style = MaterialTheme.typography.titleSmall)
-                Text(m.explanation, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(coachText(m.explanation), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             Spacer(Modifier.width(8.dp))
             Text("${m.scoreBefore.display()} → ${m.scoreAfter.display()}", style = MaterialTheme.typography.labelMedium.numeric)
@@ -828,46 +1032,5 @@ private fun BigAccuracy(name: String, value: Double?, isUser: Boolean) {
             Text(name, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 110.dp))
         }
         Text(if (isUser) "You" else "Opponent", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textMuted)
-    }
-}
-
-@Composable
-private fun MovesSheet(data: ReviewData, ply: Int, onJump: (Int) -> Unit) {
-    val line = data.line ?: return
-    val rows = (line.plyCount + (if (line.start.sideToMove == Side.BLACK) 1 else 0) + 1) / 2
-    Column(Modifier.padding(horizontal = 20.dp)) {
-        Text("Moves", style = MaterialTheme.typography.headlineSmall)
-        Spacer(Modifier.height(8.dp))
-        LazyColumn(contentPadding = PaddingValues(bottom = 32.dp)) {
-            items(rows) { r ->
-                val offset = if (line.start.sideToMove == Side.BLACK) -1 else 0
-                val whitePly = r * 2 + 1 + offset
-                val blackPly = whitePly + 1
-                Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("${line.start.fullmoveNumber + r}.", style = MaterialTheme.typography.labelLarge.numeric, color = AppTheme.colors.textMuted, modifier = Modifier.width(40.dp))
-                    MoveCell(data, whitePly, ply, onJump, Modifier.weight(1f))
-                    MoveCell(data, blackPly, ply, onJump, Modifier.weight(1f))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MoveCell(data: ReviewData, p: Int, selected: Int, onJump: (Int) -> Unit, modifier: Modifier) {
-    val line = data.line ?: return
-    if (p < 1 || p > line.plyCount) {
-        Spacer(modifier)
-        return
-    }
-    val m = data.move(p)
-    Row(
-        modifier.padding(end = 6.dp).clip(RoundedCornerShape(8.dp))
-            .background(if (p == selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
-            .clickable { onJump(p) }.padding(horizontal = 8.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(line.sans[p - 1], style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-        if (m != null && m.moveClass != MoveClass.GOOD && m.moveClass != MoveClass.EXCELLENT) ClassBadge(m.moveClass, size = 18.dp)
     }
 }

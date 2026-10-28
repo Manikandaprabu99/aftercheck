@@ -1,7 +1,9 @@
 package app.aftercheck.ui.games
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,9 +21,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -29,16 +34,29 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -58,11 +76,13 @@ import app.aftercheck.data.db.GameSummary
 import app.aftercheck.ui.components.AppIcon
 import app.aftercheck.ui.components.EmptyState
 import app.aftercheck.ui.components.Format
+import app.aftercheck.ui.components.Pill
 import app.aftercheck.ui.components.ResultBadge
 import app.aftercheck.ui.components.Skeleton
 import app.aftercheck.ui.components.StatusPill
 import app.aftercheck.ui.theme.AppTheme
 import app.aftercheck.ui.theme.numeric
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -92,20 +112,70 @@ class GamesViewModel(private val c: AppContainer) : ViewModel() {
     }.cachedIn(viewModelScope)
 
     fun update(transform: (GameFilter) -> GameFilter) = filter.update(transform)
+
+    /** Games picked in this screen, in the order they were tapped. */
+    val selection = MutableStateFlow<List<String>>(emptyList())
+
+    fun toggle(id: String) = selection.update { if (id in it) it - id else it + id }
+
+    fun clearSelection() {
+        selection.value = emptyList()
+    }
+
+    fun selectAllWaiting() = viewModelScope.launch {
+        val f = filter.value
+        val ids = c.db.games().libraryPickableIds(f.query.trim().lowercase(), f.result, f.color, f.timeClass, f.status, f.sort, SELECT_ALL_LIMIT)
+        selection.update { current -> current + ids.filter { it !in current } }
+    }
+
+    suspend fun analyseSelected(): Int {
+        val ids = selection.value
+        selection.value = emptyList()
+        return c.queue.pick(ids)
+    }
+
+    companion object {
+        const val SELECT_ALL_LIMIT = 500
+    }
 }
+
+private fun GameSummary.pickable() = status == "queued" || status == "failed"
 
 private val SORTS = listOf("Newest first", "Oldest first", "Highest accuracy", "Lowest accuracy")
 
 @Composable
-fun GamesScreen(container: AppContainer, onOpenGame: (String) -> Unit) {
+fun GamesScreen(container: AppContainer, onOpenQueue: () -> Unit = {}, onOpenGame: (String) -> Unit) {
     val vm: GamesViewModel = viewModel { GamesViewModel(container) }
     val filter by vm.filter.collectAsStateWithLifecycle()
+    val selection by vm.selection.collectAsStateWithLifecycle()
     val items = vm.games.collectAsLazyPagingItems()
+    val selecting = selection.isNotEmpty()
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val haptics = LocalHapticFeedback.current
+
+    fun tell(message: String, action: String? = null) = scope.launch {
+        snackbar.currentSnackbarData?.dismiss()
+        if (snackbar.showSnackbar(message, action, withDismissAction = action == null) == SnackbarResult.ActionPerformed) onOpenQueue()
+    }
+
+    fun notPickable(g: GameSummary) = tell(
+        when (g.status) {
+            "ready" -> "Already reviewed"
+            "analyzing" -> "This game is being analysed now"
+            else -> "This game can't be analysed"
+        },
+    )
+
+    BackHandler(enabled = selecting) { vm.clearSelection() }
 
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.widthIn(max = 720.dp).fillMaxSize().statusBarsPadding()) {
-            Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (selecting) {
+                SelectionHeader(selection.size, onClose = vm::clearSelection, onSelectAll = vm::selectAllWaiting)
+            } else Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Games", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+                IconButton(onClick = onOpenQueue) { AppIcon(R.drawable.ic_format_list_numbered, "Analysis queue") }
                 var sortOpen by remember { mutableStateOf(false) }
                 Box {
                     IconButton(onClick = { sortOpen = true }) { AppIcon(R.drawable.ic_sort, "Sort: ${SORTS[filter.sort]}") }
@@ -136,12 +206,75 @@ fun GamesScreen(container: AppContainer, onOpenGame: (String) -> Unit) {
                     body = if (filter.query.isNotEmpty() || filter.active) "Try another search or clear the filters."
                     else "Games from your Chess.com archive appear here as they're imported.",
                 )
-                else -> LazyColumn(contentPadding = PaddingValues(bottom = 16.dp)) {
+                else -> LazyColumn(contentPadding = PaddingValues(bottom = if (selecting) 96.dp else 16.dp)) {
                     items(count = items.itemCount, key = items.itemKey { it.id }) { index ->
                         val g = items[index]
-                        if (g == null) RowSkeleton(Modifier.padding(20.dp)) else GameRow(g) { onOpenGame(g.id) }
+                        if (g == null) RowSkeleton(Modifier.padding(20.dp)) else {
+                            val number = selection.indexOf(g.id).takeIf { it >= 0 }?.plus(1)
+                            GameRow(
+                                g,
+                                selectionNumber = number,
+                                dimmed = selecting && !g.pickable(),
+                                onLongClick = {
+                                    if (g.pickable()) {
+                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        vm.toggle(g.id)
+                                    } else notPickable(g)
+                                },
+                            ) {
+                                when {
+                                    !selecting -> onOpenGame(g.id)
+                                    g.pickable() -> vm.toggle(g.id)
+                                    else -> notPickable(g)
+                                }
+                            }
+                        }
                     }
                 }
+            }
+        }
+        Column(Modifier.align(Alignment.BottomCenter).widthIn(max = 720.dp).fillMaxWidth()) {
+            SnackbarHost(snackbar)
+            if (selecting) {
+                SelectionBar(selection.size) {
+                    scope.launch {
+                        val n = vm.analyseSelected()
+                        tell(if (n == 1) "1 game will be analysed first" else "$n games will be analysed first", "View queue")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SelectionHeader(count: Int, onClose: () -> Unit, onSelectAll: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onClose) { AppIcon(R.drawable.ic_close, "Cancel selection") }
+        Text("$count selected", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f).padding(start = 4.dp))
+        TextButton(onClick = onSelectAll) {
+            AppIcon(R.drawable.ic_select_all, null, size = 18.dp, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(6.dp))
+            Text("All waiting")
+        }
+    }
+}
+
+@Composable
+private fun SelectionBar(count: Int, onAnalyse: () -> Unit) {
+    Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(if (count == 1) "1 game" else "$count games", style = MaterialTheme.typography.titleSmall)
+                Text("Analysed in the order you picked them", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textMuted)
+            }
+            Button(onClick = onAnalyse) {
+                AppIcon(R.drawable.ic_play_arrow, null, size = 18.dp, tint = MaterialTheme.colorScheme.onPrimary)
+                Spacer(Modifier.width(6.dp))
+                Text("Analyse first")
             }
         }
     }
@@ -232,12 +365,30 @@ private fun ChoiceChip(label: String, value: String, choices: List<Choice>, onSe
 }
 
 @Composable
-fun GameRow(g: GameSummary, onClick: () -> Unit) {
+fun GameRow(
+    g: GameSummary,
+    selectionNumber: Int? = null,
+    dimmed: Boolean = false,
+    onLongClick: (() -> Unit)? = null,
+    onClick: () -> Unit,
+) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 72.dp).clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().heightIn(min = 72.dp)
+            .background(if (selectionNumber != null) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f) else Color.Transparent)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = "Pick for analysis")
+            .semantics {
+                selected = selectionNumber != null
+                if (selectionNumber != null) stateDescription = "Pick $selectionNumber"
+            }
+            .alpha(if (dimmed) 0.45f else 1f)
+            .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ResultBadge(g.userResult, size = 36.dp)
+        if (selectionNumber != null) {
+            Box(Modifier.size(36.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
+                Text("$selectionNumber", style = MaterialTheme.typography.titleSmall.numeric, color = MaterialTheme.colorScheme.onPrimary)
+            }
+        } else ResultBadge(g.userResult, size = 36.dp)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -266,10 +417,15 @@ fun GameRow(g: GameSummary, onClick: () -> Unit) {
         }
         Spacer(Modifier.width(12.dp))
         Column(horizontalAlignment = Alignment.End) {
-            if (g.status == "ready") {
-                Text(Format.percent(g.userAccuracy), style = MaterialTheme.typography.titleMedium.numeric)
-                Text("accuracy", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textMuted)
-            } else StatusPill(g.status, g.progress)
+            val rank = g.queueRank
+            when {
+                g.status == "ready" -> {
+                    Text(Format.percent(g.userAccuracy), style = MaterialTheme.typography.titleMedium.numeric)
+                    Text("accuracy", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textMuted)
+                }
+                rank != null -> Pill("Next · #$rank", color = MaterialTheme.colorScheme.primary, background = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                else -> StatusPill(g.status, g.progress)
+            }
         }
     }
 }

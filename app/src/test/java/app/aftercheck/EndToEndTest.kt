@@ -10,10 +10,22 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasScrollToKeyAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performScrollToKey
+import androidx.compose.ui.test.performTouchInput
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -35,6 +47,7 @@ import app.aftercheck.ui.insights.InsightsScreen
 import app.aftercheck.ui.onboarding.OnboardingScreen
 import app.aftercheck.ui.practice.DrillScreen
 import app.aftercheck.ui.practice.PracticeScreen
+import app.aftercheck.ui.queue.QueueScreen
 import app.aftercheck.ui.review.ReviewScreen
 import app.aftercheck.ui.settings.SettingsScreen
 import app.aftercheck.ui.theme.AfterCheckTheme
@@ -152,6 +165,13 @@ class EndToEndTest {
         val reviewGame = runBlocking {
             c.db.games().recentReviewed(50).first().maxByOrNull { (it.userBlunders ?: 0) + (it.userMistakes ?: 0) }!!
         }
+        // Queue state: three games picked by the user, another one being analysed.
+        val pendingGame = runBlocking {
+            val waiting = c.db.games().observeAutoQueue(10).first()
+            assertEquals(3, c.queue.pick(waiting.take(3).map { it.id }))
+            c.db.games().setStatus(waiting[3].id, GameStatus.ANALYZING, null, 40)
+            waiting[1]
+        }
         var screen by mutableStateOf("welcome")
         var theme by mutableStateOf(ThemeMode.DARK)
         compose.setContent {
@@ -163,6 +183,8 @@ class EndToEndTest {
                     "home" -> HomeScreen(c, {}, {}, {})
                     "games" -> GamesScreen(c) {}
                     "review" -> ReviewScreen(c, reviewGame.id) {}
+                    "pending" -> ReviewScreen(c, pendingGame.id) {}
+                    "queue" -> QueueScreen(c, {}, {})
                     "insights" -> InsightsScreen(c) {}
                     "practice" -> PracticeScreen(c, { _, _ -> }, {})
                     "drill" -> DrillScreen(c, "", false, {}, {})
@@ -175,7 +197,9 @@ class EndToEndTest {
             "welcome" to "Connect Chess.com",
             "home" to "Latest game",
             "games" to "accuracy",
-            "review" to "Summary",
+            "review" to "Estimated accuracy",
+            "pending" to "#2 in your queue",
+            "queue" to "Your picks",
             "insights" to "Results",
             "practice" to "Practice",
             "drill" to "Find the best move",
@@ -183,23 +207,56 @@ class EndToEndTest {
         )
         for (mode in listOf(ThemeMode.DARK, ThemeMode.LIGHT)) {
             theme = mode
+            val prefix = mode.name.lowercase()
             for ((name, text) in expectations) {
                 screen = name
                 compose.waitUntil(15_000) { compose.onAllNodesWithText(text, substring = true).fetchSemanticsNodes().isNotEmpty() }
-                if (name == "review") {
-                    // Start position first, then the user's most serious error so the coach card is shown.
-                    compose.onNodeWithContentDescription("First move").performClick()
-                    compose.waitUntil(15_000) { compose.onAllNodesWithText("Start").fetchSemanticsNodes().isNotEmpty() }
-                    capture("${mode.name.lowercase()}-review-start")
-                    val target = runBlocking {
-                        c.db.reviews().moves(reviewGame.id).filter { it.isUser }.maxByOrNull { it.pointsLost }!!
-                    }
-                    repeat(target.ply) { compose.onNodeWithContentDescription("Next move").performClick() }
-                    compose.waitUntil(15_000) { compose.onAllNodesWithText(" is ", substring = true).fetchSemanticsNodes().isNotEmpty() }
+                when (name) {
+                    "review" -> captureReview(prefix, reviewGame.id)
+                    "games" -> captureSelection(prefix, runBlocking { c.db.games().observeAutoQueue(10).first().map { it.id } })
+                    else -> capture("$prefix-$name")
                 }
-                capture("${mode.name.lowercase()}-$name")
             }
         }
+    }
+
+    /** Report first, then the moves tab: start, the user's worst move, and its best line paused on its second move. */
+    private fun captureReview(prefix: String, gameId: String) {
+        capture("$prefix-review-report")
+        compose.onNodeWithText("Moves").performClick()
+        compose.onNodeWithContentDescription("First move").performClick()
+        compose.waitUntil(15_000) { compose.onAllNodesWithText("Start").fetchSemanticsNodes().isNotEmpty() }
+        capture("$prefix-review-start")
+        val target = runBlocking {
+            ApplicationProvider.getApplicationContext<AfterCheckApp>().container.db.reviews().moves(gameId).filter { it.isUser }.maxByOrNull { it.pointsLost }!!
+        }
+        repeat(target.ply) { compose.onNodeWithContentDescription("Next move").performClick() }
+        compose.waitUntil(15_000) { compose.onAllNodesWithText(" is ", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        capture("$prefix-review")
+
+        compose.onNodeWithText("Show best line").performClick()
+        if (compose.onAllNodesWithContentDescription("Pause line").fetchSemanticsNodes().isNotEmpty()) {
+            compose.onNodeWithContentDescription("Pause line").performClick()
+        }
+        val lineMove = SemanticsMatcher("engine line move") { it.config.getOrNull(SemanticsActions.OnClick)?.label?.startsWith("Show the position after") == true }
+        compose.onAllNodes(lineMove)[1].performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Paused", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        capture("$prefix-review-line")
+        compose.onNodeWithContentDescription("Back to game").performClick()
+        compose.onNodeWithText("Report").performClick()
+    }
+
+    /** Games tab in selection mode with two waiting games picked. */
+    private fun captureSelection(prefix: String, waiting: List<String>) {
+        capture("$prefix-games")
+        val gameList = hasScrollToKeyAction() and hasAnyDescendant(hasText("accuracy"))
+        compose.onNode(gameList).performScrollToKey(waiting[0])
+        compose.onAllNodesWithText("Queued", substring = true)[0].performTouchInput { longClick() }
+        compose.onAllNodesWithText("Queued", substring = true)[1].performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("2 selected").fetchSemanticsNodes().isNotEmpty() }
+        capture("$prefix-games-select")
+        compose.onNodeWithContentDescription("Cancel selection").performClick()
+        compose.onNode(gameList).performScrollToIndex(0)
     }
 
     private fun capture(name: String) {

@@ -32,7 +32,7 @@ Chess.com archive ──SyncWorker──▶ games (status = queued)
 ```
 
 1. **Sync** (`SyncEngine`): fetch the archive index (ETag), then monthly archives newest-first, up to 12 per run. Games are keyed by Chess.com's UUID (`INSERT OR IGNORE`), so reruns and interrupted runs never duplicate. Past months become `complete` once fetched after the month ended (+2 days) and are never requested again; the current month is re-checked with `If-None-Match`. Remaining history continues in chained work.
-2. **Queue**: `games.status` is the queue (`queued → analyzing → ready | failed | skipped`), ordered by priority (user request > new > recent > backlog) then end time. A game left `analyzing` by a killed process is reset at the next run.
+2. **Queue**: `games.status` is the queue (`queued → analyzing → ready | failed | skipped`). Games the user picks get a `queueOrder` (`AnalysisQueue`) and run first in that order, regardless of the charging preference; everything else follows by priority (new > recent > backlog) then end time. If a pick arrives while an automatic game is being analysed, the worker stops that game between two positions and starts the pick; positions already evaluated stay in the cache, so the interrupted game resumes cheaply. A game left `analyzing` by a killed process is reset at the next run.
 3. **Analysis** (`AnalysisService`): replay the PGN, evaluate every position with the engine (via the cache), classify, explain, summarise, and write moves + review + practice positions in one transaction. Engine failures retry up to three times.
 4. **UI**: screens observe Room `Flow`s; the Games list uses Paging 3.
 

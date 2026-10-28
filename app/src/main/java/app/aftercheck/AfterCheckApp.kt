@@ -10,6 +10,7 @@ import androidx.work.Configuration
 import app.aftercheck.data.chesscom.ChessComApi
 import app.aftercheck.data.chesscom.UrlConnectionHttpClient
 import app.aftercheck.data.db.AppDatabase
+import app.aftercheck.data.queue.AnalysisQueue
 import app.aftercheck.data.settings.SettingsRepository
 import app.aftercheck.data.sync.RoomSyncStore
 import app.aftercheck.data.sync.SyncEngine
@@ -34,6 +35,7 @@ class AppContainer(context: Context, apiBaseUrl: String) {
     val workStatus = WorkStatus(context, engineFiles)
     val api = ChessComApi(UrlConnectionHttpClient(USER_AGENT), apiBaseUrl)
     val analysis = AnalysisService(db, settings, engineFiles, openingBook)
+    val queue = AnalysisQueue(db) { scheduler.enqueueAnalysis() }
 
     val syncEngine = SyncEngine(api = api, store = RoomSyncStore(db), book = { openingBook.get() })
 

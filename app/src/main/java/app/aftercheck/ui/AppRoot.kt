@@ -46,6 +46,7 @@ import app.aftercheck.ui.insights.InsightsScreen
 import app.aftercheck.ui.onboarding.OnboardingScreen
 import app.aftercheck.ui.practice.DrillScreen
 import app.aftercheck.ui.practice.PracticeScreen
+import app.aftercheck.ui.queue.QueueScreen
 import app.aftercheck.ui.review.ReviewScreen
 import app.aftercheck.ui.settings.SettingsScreen
 import app.aftercheck.ui.theme.AppTheme
@@ -60,6 +61,7 @@ private enum class Tab(val route: String, val label: String, @DrawableRes val ic
 
 object Routes {
     const val WELCOME = "welcome"
+    const val QUEUE = "queue"
     fun review(id: String) = "review/${android.net.Uri.encode(id)}"
     fun drill(theme: String = "", starred: Boolean = false) = "drill?theme=$theme&starred=$starred"
 }
@@ -133,10 +135,18 @@ fun AppRoot(container: AppContainer, settings: AppSettings) {
                     onOpenGame = { nav.navigate(Routes.review(it)) },
                     onOpenTab = { nav.navigateToTab(it) },
                     onPractice = { nav.navigate(Routes.drill()) },
+                    onOpenQueue = { nav.navigate(Routes.QUEUE) },
                 )
             }
             composable(Tab.GAMES.route) {
-                GamesScreen(container, onOpenGame = { nav.navigate(Routes.review(it)) })
+                GamesScreen(container, onOpenQueue = { nav.navigate(Routes.QUEUE) }, onOpenGame = { nav.navigate(Routes.review(it)) })
+            }
+            composable(
+                Routes.QUEUE,
+                enterTransition = { slideInHorizontally(tween(260)) { it / 6 } + fadeIn(tween(220)) },
+                popExitTransition = { slideOutHorizontally(tween(220)) { it / 6 } + fadeOut(tween(180)) },
+            ) {
+                QueueScreen(container, onBack = { nav.popBackStack() }, onOpenGame = { nav.navigate(Routes.review(it)) })
             }
             composable(Tab.INSIGHTS.route) {
                 InsightsScreen(container, onPracticeTheme = { nav.navigate(Routes.drill(theme = it)) })
@@ -157,7 +167,12 @@ fun AppRoot(container: AppContainer, settings: AppSettings) {
                 enterTransition = { slideInHorizontally(tween(260)) { it / 6 } + fadeIn(tween(220)) },
                 popExitTransition = { slideOutHorizontally(tween(220)) { it / 6 } + fadeOut(tween(180)) },
             ) { backStack ->
-                ReviewScreen(container, backStack.arguments?.getString("id").orEmpty(), onBack = { nav.popBackStack() })
+                ReviewScreen(
+                    container,
+                    backStack.arguments?.getString("id").orEmpty(),
+                    onOpenQueue = { nav.navigate(Routes.QUEUE) },
+                    onBack = { nav.popBackStack() },
+                )
             }
             composable(
                 "drill?theme={theme}&starred={starred}",
